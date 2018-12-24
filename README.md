@@ -3,7 +3,10 @@ Solve linear circuits with nodal analysis.
 
 Written in python, uses numpy for the numerical work.
 
-Currently supports linear networks composed of ideal resistors and current generators.
+Currently supports linear networks composed of
+* resistors
+* ideal voltage and current generators
+* dependent sources: VCVS
 
 ## Usage example
 Suppose we wanted to solve this circuit:
