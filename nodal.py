@@ -2,6 +2,7 @@ import numpy as np
 import sys
 import csv
 import logging
+logging.basicConfig(level=logging.DEBUG)
 
 NETLIST = sys.argv[1]
 # CSV parsing
@@ -21,6 +22,11 @@ NODE_TYPES_ANOM = ["E"] + NODE_TYPES_DEP
 NODE_TYPES = ["A", "R"] + NODE_TYPES_ANOM
 
 components = {}
+# We will need to iterate over components twice
+# in the same order, so we save keys
+# TODO make this more memory efficient
+component_keys = []
+
 # Compute problem dimensions and find highest degree node
 with open(NETLIST, 'r') as infile:
     netlist = csv.reader(infile)
@@ -32,11 +38,13 @@ with open(NETLIST, 'r') as infile:
     degrees = {}
     anomnum = {}
     for component in netlist:
-        assert type(component[NCOL]) == str
-        components[component[NCOL]] = [None] * 8
+        key = component[NCOL]
+        assert type(key) == str
+        component_keys.append(key)
+        components[key] = [None] * 8
 
-        newcomp = components[component[NCOL]]
-        newcomp[NCOL] = component[NCOL]
+        newcomp = components[key]
+        newcomp[NCOL] = key
         assert component[TCOL] in NODE_TYPES
         newcomp[TCOL] = component[TCOL]
 
@@ -78,6 +86,7 @@ with open(NETLIST, 'r') as infile:
 
 ground = max(degrees.keys(), key=(lambda x: degrees[x]))
 #ground = sys.argv[2]
+logging.debug("ground node-> {}".format(ground))
 
 i = 0
 nodenum = {}
@@ -91,7 +100,6 @@ nums["be"] = nums["anomalies"]
 logging.debug("nums={}".format(nums))
 logging.debug("anomnum={}".format(anomnum))
 # From now on nums shall become immutable
-    
 
 # We are going to solve Ge = A
 # Build coefficient matrix 
@@ -99,7 +107,7 @@ n = nums["kcl"] + nums["be"] # number of unknowns
 G = np.zeros(shape=(n, n))
 A = np.zeros(shape=(n, 1))
 currents = []
-for key in components:
+for key in component_keys: # preserve order of iteration
     component = components[key]
     anode = component[ACOL]
     bnode = component[BCOL]
@@ -110,7 +118,11 @@ for key in components:
         j = nodenum[bnode]
         assert j >= 0 and j <= nums["kcl"]
     if component[TCOL] == "R":
-        conductance = 1 / component[VCOL]
+        try:
+            conductance = 1 / component[VCOL]
+        except ZeroDivisionError:
+            print("Model error: resistors can't have null resistance")
+            exit(1)
         if anode != ground:
             G[i,i] += conductance
         if bnode != ground:
@@ -167,7 +179,6 @@ for key in components:
             j = nodenum[dnode]
             G[i,j] += r
     elif component[TCOL] == "CCCS":
-        raise NotImplementedError
         currents.append(component[NCOL])
         g = component[VCOL]
         k = anomnum[component[NCOL]]
@@ -177,20 +188,51 @@ for key in components:
             assert G[i,j] == 0
             G[i,j] = -g
         if bnode != ground:
-            j = nodenum[bnode]
+            i = nodenum[bnode]
             assert G[i,j] == 0
             G[i,j] = g
-        # We will now write the branch equation
-        # for the generated current,
-        # to do this we need to know
-        # the operating characteristic
-        # of the component PCOL, between CCOL and DCOL
-        # i_cccs = char(eC - eD)
-        # we need to get component type and value from 
-        # component name
+        # we write the branch equation:
+        # i_cccs = i_driver
+        i = j
+        assert G[i,i] == 0
+        G[i,i] = 1
+        driver = components[component[PCOL]]
+        # case 1: i_driver is unknown 
+        if driver[TCOL] == 'R':
+            cnode = component[CCOL]
+            dnode = component[DCOL]
+            assert (cnode == driver[ACOL] and dnode == driver[BCOL]) or (cnode == driver[BCOL] and dnode == driver[ACOL])
+            assert cnode != None
+            assert dnode != None
+            if cnode != ground:
+                j = nodenum[cnode]
+                assert G[i,j] == 0
+                G[i,j] = +1 / driver[VCOL]
+            if dnode != ground:
+                j = nodenum[dnode]
+                assert G[i,j] == 0
+                G[i,j] = -1 / driver[VCOL]
+        elif driver[TCOL] in NODE_TYPES_ANOM:
+            j = anomnum[driver[NCOL]]
+            if driver[ACOL] == component[CCOL]:
+                assert driver[BCOL] == component[DCOL]
+                G[i,j] = -1
+            else:
+                assert driver[ACOL] == component[DCOL]
+                assert driver[BCOL] == component[CCOL]
+                G[i,j] = 1
+        # case 2: i_driver is known 
+        elif driver[TCOL] == 'A':
+            assert A[i] == 0
+            A[i] = driver[VCOL]
+        else:
+            exit(1)
     else:
         exit(1)
 
+logging.debug("currents={}".format(currents))
+logging.debug("G=\n{}".format(G))
+logging.debug("A=\n{}".format(A))
 try:
     e = np.linalg.solve(G, A)
 except np.linalg.linalg.LinAlgError:
