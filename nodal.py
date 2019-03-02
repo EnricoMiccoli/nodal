@@ -201,13 +201,13 @@ def build_coefficients(state):
             if anode != ground:
                 i = nodenum[anode]
                 assert G[i,j] == 0
-                G[i,j] = -g
+                G[i,j] = -1
             if bnode != ground:
                 i = nodenum[bnode]
                 assert G[i,j] == 0
-                G[i,j] = g
+                G[i,j] = 1
             # we write the branch equation:
-            # i_cccs = i_driver
+            # i_cccs = g * i_driver
             i = j
             assert G[i,i] == 0
             G[i,i] = 1
@@ -222,24 +222,24 @@ def build_coefficients(state):
                 if cnode != ground:
                     j = nodenum[cnode]
                     assert G[i,j] == 0
-                    G[i,j] = +1 / driver[VCOL]
+                    G[i,j] = +g / driver[VCOL]
                 if dnode != ground:
                     j = nodenum[dnode]
                     assert G[i,j] == 0
-                    G[i,j] = -1 / driver[VCOL]
+                    G[i,j] = -g / driver[VCOL]
             elif driver[TCOL] in NODE_TYPES_ANOM:
                 j = anomnum[driver[NCOL]]
                 if driver[ACOL] == component[CCOL]:
                     assert driver[BCOL] == component[DCOL]
-                    G[i,j] = -1
+                    G[i,j] = -g
                 else:
                     assert driver[ACOL] == component[DCOL]
                     assert driver[BCOL] == component[CCOL]
-                    G[i,j] = 1
+                    G[i,j] = g
             # case 2: i_driver is known 
             elif driver[TCOL] == 'A':
                 assert A[i] == 0
-                A[i] = driver[VCOL]
+                A[i] = g * driver[VCOL]
             else:
                 exit(1)
         else:
