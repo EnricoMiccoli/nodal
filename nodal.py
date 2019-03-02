@@ -20,6 +20,9 @@ NODE_TYPES_DEP = ["VCVS", "VCCS"] + NODE_TYPES_CC
 NODE_TYPES_ANOM = ["E"] + NODE_TYPES_DEP
 NODE_TYPES = ["A", "R"] + NODE_TYPES_ANOM
 
+# TODO functions should raise an exception and log
+# the error instead of calling exit(1)
+
 def find_ground_node(degrees):
     ground = max(degrees.keys(), key=(lambda x: degrees[x]))
     logging.debug("ground node-> {}".format(ground))
@@ -106,15 +109,6 @@ def read_netlist(netlist_path):
     state = [nums, degrees, anomnum, components, component_keys, ground, nodenum] 
     # TODO these variables should become attributes of an object
     return state
-
-def solve_system(G, A):
-    try:
-        e = np.linalg.solve(G, A)
-    except np.linalg.linalg.LinAlgError:
-        print("Model error: matrix is singular")
-        logging.error(G)
-        exit(1)
-    return e
 
 def build_coefficients(state):
     [nums, degrees, anomnum, components, component_keys, ground, nodenum] = state
@@ -226,7 +220,50 @@ def build_coefficients(state):
                 G[i,j] = +g
 
         elif component[TCOL] == "CCVS":
-            raise NotImplementedError
+            r = component[VCOL]
+            k = anomnum[component[NCOL]]
+            i = nums["kcl"] + k
+            currents.append(component[NCOL])
+            cnode = component[CCOL]
+            dnode = component[DCOL]
+            driver = components[component[PCOL]]
+            assert cnode != None
+            assert dnode != None
+            assert driver != None
+            assert (cnode == driver[ACOL] and dnode == driver[BCOL]) or (cnode == driver[BCOL] and dnode == driver[ACOL])
+            if anode != ground:
+                j = nodenum[anode]
+                G[i,j] = 1
+                G[j,i] = -1
+            if bnode != ground:
+                j = nodenum[bnode]
+                G[i,j] = -1
+                G[j,i] = 1
+
+            # we write the branch equation:
+            # v_cccv = r * i_driver
+            # ea - eb - r * i_driver = 0
+            if driver[TCOL] == 'R':
+                # i_driver = (ec - ed)/R_driver
+                if cnode != ground:
+                    j = nodenum[cnode]
+                    G[i,j] = r / driver[VCOL]
+                if dnode != ground:
+                    j = nodenum[dnode]
+                    G[i,j] = -r / driver[VCOL]
+            elif driver[TCOL] in NODE_TYPES_ANOM:
+                j = anomnum[driver[NCOL]]
+                if driver[ACOL] == component[CCOL]:
+                    assert driver[BCOL] == component[DCOL]
+                    G[i,j] = -r
+                else:
+                    assert driver[ACOL] == component[DCOL]
+                    assert driver[BCOL] == component[CCOL]
+                    G[i,j] = r
+            elif driver[TCOL] == 'A':
+                A[i] = r * driver[VCOL]
+            else:
+                exit(1)
 
         elif component[TCOL] == "CCCS":
             currents.append(component[NCOL])
@@ -284,6 +321,15 @@ def build_coefficients(state):
     logging.debug("G=\n{}".format(G))
     logging.debug("A=\n{}".format(A))
     return [G, A, currents]
+
+def solve_system(G, A):
+    try:
+        e = np.linalg.solve(G, A)
+    except np.linalg.linalg.LinAlgError:
+        print("Model error: matrix is singular")
+        logging.error(G)
+        exit(1)
+    return e
 
 def print_solution(e, nodenum, nums, currents):
     nodelabel = dict(reversed(x) for x in nodenum.items())
