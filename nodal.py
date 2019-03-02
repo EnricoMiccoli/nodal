@@ -132,6 +132,7 @@ def build_coefficients(state):
         if bnode != ground:
             j = nodenum[bnode]
             assert j >= 0 and j <= nums["kcl"]
+
         if component[TCOL] == "R":
             try:
                 conductance = 1 / component[VCOL]
@@ -145,12 +146,14 @@ def build_coefficients(state):
             if bnode != ground and anode != ground:
                 G[i,j] -= conductance
                 G[j,i] -= conductance
+
         elif component[TCOL] == "A":
             current = component[VCOL]
             if anode != ground:
                 A[i] += current
             if bnode != ground:
                 A[j] -= current
+
         elif component[TCOL] == "E":
             tension = component[VCOL]
             k = anomnum[component[NCOL]]
@@ -167,6 +170,7 @@ def build_coefficients(state):
                 assert G[i,j] == 0
                 G[i,j] = -1
                 G[j,i] = 1
+
         elif component[TCOL] == "VCVS":
             currents.append(component[NCOL])
             r = component[VCOL]
@@ -193,6 +197,37 @@ def build_coefficients(state):
             if dnode != ground:
                 j = nodenum[dnode]
                 G[i,j] += r
+
+        elif component[TCOL] == "VCCS":
+            currents.append(component[NCOL])
+            g = component[VCOL]
+            k = anomnum[component[NCOL]]
+            j = nums["kcl"] + k
+            if anode != ground:
+                i = nodenum[anode]
+                assert G[i,j] == 0
+                G[i,j] = -1
+            if bnode != ground:
+                i = nodenum[bnode]
+                assert G[i,j] == 0
+                G[i,j] = 1
+            # we write the branch equation:
+            # i_cccs = g (ec - ed)
+            # i_cccs - g ec + g ed = 0
+            i = j
+            G[i,i] = +1
+            cnode = component[CCOL]
+            dnode = component[DCOL]
+            if cnode != ground:
+                j = nodenum[cnode]
+                G[i,j] = -g
+            if dnode != ground:
+                j = nodenum[dnode]
+                G[i,j] = +g
+
+        elif component[TCOL] == "CCVS":
+            raise NotImplementedError
+
         elif component[TCOL] == "CCCS":
             currents.append(component[NCOL])
             g = component[VCOL]

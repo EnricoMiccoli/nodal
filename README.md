@@ -6,7 +6,7 @@ Written in python, uses numpy for the numerical work.
 Currently supports linear networks composed of
 * resistors
 * ideal voltage and current generators
-* dependent sources: VCVS, CCCS
+* dependent sources: VCVS, VCCS, CCCS 
 
 ## Usage example
 Suppose we wanted to solve this circuit:
