@@ -31,6 +31,32 @@ e(1) = [ 1.]
 e(3) = [-1.]
 ```
 
+## A more advanced example
+
+![Circuit diagram](doc/1.6.1.png)
+
+_Example circuit from: [Esercizi da temi d'esame di Elettrotecnica](http://home.deib.polimi.it/damore/download/temiDEsame.pdf)_
+
+Input file `1.6.1.csv`:
+```
+r1,R,2,1,4
+r2,R,2,1,g
+r3,R,0.5,1,2
+e1,E,8,4,g
+a1,A,4,1,2
+d1,CCCS,2,2,g,1,g,r2
+```
+
+Output:
+```
+Ground node: 1
+e(2) = [-3.]
+e(4) = [ 6.]
+e(g) = [-2.]
+i(e1) = [ 3.]
+i(d1) = [-2.]
+```
+
 # Complete component specification
 
 | | Type | Value | Lead + | Lead - | Control + | Control - | Driver |
