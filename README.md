@@ -22,13 +22,13 @@ Take notice of the orientation of the current generator: current flows toward th
 
 Default units are ampere and ohm.
 
-We can then execute `$ python nodal.py netlist.csv` to get the list of node potentials (unit is volt).
+We can then execute `$ python solver.py netlist.csv` to get the list of node potentials (unit is volt).
 
 Printed output:
 ```
 Ground node: 2
-e(1) = [ 1.]
-e(3) = [-1.]
+e(1)    = 1.0
+e(3)    = -1.0
 ```
 
 ## A more advanced example
@@ -50,11 +50,11 @@ d1,CCCS,2,2,g,1,g,r2
 Output:
 ```
 Ground node: 1
-e(2) = [-3.]
-e(4) = [ 6.]
-e(g) = [-2.]
-i(e1) = [ 3.]
-i(d1) = [-2.]
+e(2)    = -3.0
+e(4)    = 6.0
+e(g)    = -2.0
+i(d1)   = -2.0
+i(e1)   = 3.0
 ```
 
 # Complete component specification

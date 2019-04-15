@@ -1,8 +1,7 @@
 import numpy as np
-import sys
 import csv
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.ERROR)
 
 # CSV parsing
 NCOL = 0 # component name
@@ -332,33 +331,43 @@ def solve_system(G, A):
         raise
     return e
 
-def print_solution(e, nodenum, nums, currents):
-    print("Ground node: {}".format(ground))
+class Netlist(object):
+    def __init__(self, path):
+        self.state = read_netlist(path)
 
-    names = sorted(nodenum)
-    for name in names:
-        i = nodenum[name]
-        potential = e[i]
-        print("e({}) \t= {}".format(name, potential[0]))
+class Solution(object):
+    def __init__(self, result, state, currents):
+        self.result = result
+        self.nodenum = state[6]
+        self.nums = state[0]
+        self.currents = currents
+        self.ground = state[5]
+        self.anomnum = state[2]
 
-    names = sorted(anomnum)
-    for name in names:
-        i = anomnum[name]
-        current = e[nums["kcl"] + i]
-        print("i({}) \t= {}".format(name, current[0]))
+    def __str__(self):
+        output = "Ground node: {}".format(self.ground)
+        names = sorted(self.nodenum)
+        for name in names:
+            i = self.nodenum[name]
+            potential = self.result[i][0]
+            output += "\ne({}) \t= {}".format(name, potential)
+        names = sorted(self.anomnum)
+        for name in names:
+            i = self.anomnum[name]
+            current = self.result[self.nums["kcl"] + i][0]
+            output += "\ni({}) \t= {}".format(name, current)
+        return output
 
+class Circuit(object):
+    def __init__(self, netlist):
+        self.state = netlist.state
+        model = build_coefficients(self.state)
+        self.G = model[0]
+        self.A = model[1]
+        self.currents = model[2]
 
+    def solve(self):
+        result = solve_system(self.G, self.A)
+        solution = Solution(result, self.state, self.currents)
+        return solution
 
-if __name__ == '__main__':
-    if len(sys.argv) == 2:
-        netlist_path = sys.argv[1]
-    else:
-        print("Missing argument: netlist file")
-        exit(1)
-    state = read_netlist(netlist_path)
-    [nums, degrees, anomnum, components, component_keys, ground, nodenum] = state
-
-    [G, A, currents] = build_coefficients(state)
-    e = solve_system(G, A)
-
-    print_solution(e, nodenum, nums, currents)
