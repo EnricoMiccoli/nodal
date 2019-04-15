@@ -333,16 +333,21 @@ def solve_system(G, A):
     return e
 
 def print_solution(e, nodenum, nums, currents):
-    nodelabel = dict(reversed(x) for x in nodenum.items())
     print("Ground node: {}".format(ground))
-    i = 0
-    for potential in e[0:nums["kcl"]]:
-        print("e({}) = {}".format(nodelabel[i], potential))
-        i += 1
-    i = 0
-    for current in e[nums["kcl"]:nums["kcl"]+nums["be"]]:
-        print("i({}) = {}".format(currents[i], current))
-        i += 1
+
+    names = sorted(nodenum)
+    for name in names:
+        i = nodenum[name]
+        potential = e[i]
+        print("e({}) \t= {}".format(name, potential[0]))
+
+    names = sorted(anomnum)
+    for name in names:
+        i = anomnum[name]
+        current = e[nums["kcl"] + i]
+        print("i({}) \t= {}".format(name, current[0]))
+
+
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
