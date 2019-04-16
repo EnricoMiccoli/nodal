@@ -1,4 +1,7 @@
 import numpy as np
+import scipy as sp
+import scipy.sparse as spsp
+import scipy.sparse.linalg as spspla
 import csv
 import logging
 logging.basicConfig(level=logging.ERROR)
@@ -108,11 +111,14 @@ def read_netlist(netlist_path):
     # TODO these variables should become attributes of an object
     return state
 
-def build_coefficients(state):
+def build_coefficients(state, sparse):
     [nums, degrees, anomnum, components, component_keys, ground, nodenum] = state
     n = nums["kcl"] + nums["be"] # number of unknowns
-    G = np.zeros(shape=(n, n))
-    A = np.zeros(shape=(n, 1))
+    if sparse:
+        G = spsp.dok_matrix((n,n), dtype=np.float64)
+    else:
+        G = np.zeros(shape=(n, n))
+    A = np.zeros(n)
     currents = []
     for key in component_keys: # preserve order of iteration
         component = components[key]
@@ -129,7 +135,7 @@ def build_coefficients(state):
             try:
                 conductance = 1 / component[VCOL]
             except ZeroDivisionError:
-                logging.error(" Model error: resistors can't have null resistance")
+                logging.error("Model error: resistors can't have null resistance")
                 print()
                 raise
             if anode != ground:
@@ -319,15 +325,25 @@ def build_coefficients(state):
     logging.debug("currents={}".format(currents))
     logging.debug("G=\n{}".format(G))
     logging.debug("A=\n{}".format(A))
+    if sparse:
+        G = G.tocsr()
     return [G, A, currents]
 
 def solve_system(G, A):
     try:
         e = np.linalg.solve(G, A)
     except np.linalg.linalg.LinAlgError:
-        print("Model error: matrix is singular")
-        logging.error(G)
-        print()
+        logging.error("Model error: matrix is singular")
+        logging.debug(G)
+        raise
+    return e
+
+def solve_sparse_system(G, A):
+    try:
+        e = spspla.spsolve(G, A)
+    except sp.linalg.LinAlgError:
+        logging.error("Model error: matrix is singular")
+        logging.debug(G)
         raise
     return e
 
@@ -349,25 +365,31 @@ class Solution(object):
         names = sorted(self.nodenum)
         for name in names:
             i = self.nodenum[name]
-            potential = self.result[i][0]
+            potential = self.result[i]
             output += "\ne({}) \t= {}".format(name, potential)
         names = sorted(self.anomnum)
         for name in names:
             i = self.anomnum[name]
-            current = self.result[self.nums["kcl"] + i][0]
+            current = self.result[self.nums["kcl"] + i]
             output += "\ni({}) \t= {}".format(name, current)
         return output
 
 class Circuit(object):
-    def __init__(self, netlist):
+    def __init__(self, netlist, sparse=False):
         self.state = netlist.state
-        model = build_coefficients(self.state)
+        self.sparse = sparse
+        model = build_coefficients(self.state, self.sparse)
         self.G = model[0]
         self.A = model[1]
         self.currents = model[2]
 
     def solve(self):
-        result = solve_system(self.G, self.A)
+        if self.sparse:
+            result = solve_sparse_system(self.G, self.A)
+            print(type(result))
+        else:
+            result = solve_system(self.G, self.A)
+            print(type(result))
         solution = Solution(result, self.state, self.currents)
         return solution
 
