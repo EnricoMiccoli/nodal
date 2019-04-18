@@ -49,10 +49,10 @@ d1,CCCS,2,2,g,1,g,r2
 
 Output:
 ```
-Ground node: 1
-e(2)    = -3.0
-e(4)    = 6.0
-e(g)    = -2.0
+Ground node: g
+e(1)    = 2.0
+e(2)    = -1.0
+e(4)    = 8.0
 i(d1)   = -2.0
 i(e1)   = 3.0
 ```

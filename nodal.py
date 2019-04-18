@@ -23,7 +23,10 @@ NODE_TYPES_ANOM = ["E"] + NODE_TYPES_DEP
 NODE_TYPES = ["A", "R"] + NODE_TYPES_ANOM
 
 def find_ground_node(degrees):
-    ground = max(degrees.keys(), key=(lambda x: degrees[x]))
+    if "g" in degrees:
+        ground = "g"
+    else:
+        ground = max(degrees.keys(), key=(lambda x: degrees[x]))
     logging.debug("ground node-> {}".format(ground))
     return ground
 
