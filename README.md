@@ -68,3 +68,18 @@ CCCS | CCCS | gain (adimensional) | + current | ground | + driving current | - d
 CCVS | CCVS | gain (ohm) | + tension | ground | + driving current | - driving current | component determining the current |
 VCCS | VCCS | gain (ohm^-1) | + current | ground | + driving voltage | - driving voltage | NA |
 VCVS | VCVS | gain (adimensional) | + voltage | ground | + driving voltage | - driving voltage | NA |
+
+## Modeling operational amplifiers
+Opamps are not supported directly, but we can use an equivalent circuit. For example we can simulate a voltage buffer:
+
+![Voltage buffer circuit diagram](doc/buffer.png)
+
+Output:
+```
+Ground node: g
+e(1)    = 9.999900000999991
+e(2)    = 9.999900000635535
+e(3)    = 9.999999999999998
+i(d1)   = -3.2741537359603055e-11
+i(vs)   = 9.999900000878983e-12
+```
