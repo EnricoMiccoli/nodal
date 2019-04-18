@@ -12,7 +12,11 @@ if __name__ == '__main__':
     else:
         sparse = False
 
-    netlist = n.Netlist(netlist_path)
+    try:
+        netlist = n.Netlist(netlist_path)
+    except FileNotFoundError:
+        print("File not found: {}".format(netlist_path))
+        exit(1)
     circuit = n.Circuit(netlist, sparse=sparse)
     solution = circuit.solve()
     print(solution)

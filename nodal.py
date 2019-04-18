@@ -40,7 +40,6 @@ def read_netlist(netlist_path):
         infile = open(netlist_path, 'r')
     except FileNotFoundError:
         logging.error("File does not exist in specified path")
-        print()
         raise
     with open(netlist_path, 'r') as infile:
         netlist = csv.reader(infile)
@@ -68,7 +67,6 @@ def read_netlist(netlist_path):
                 logging.error("Bad input: expected a number for component value of {} \
                 got {} instead".format(component[NCOL], \
                 component[VCOL]))
-                print()
                 raise
 
             newcomp[ACOL] = component[ACOL]
@@ -139,8 +137,7 @@ def build_coefficients(state, sparse):
                 conductance = 1 / component[VCOL]
             except ZeroDivisionError:
                 logging.error("Model error: resistors can't have null resistance")
-                print()
-                raise
+                raise ValueError
             if anode != ground:
                 G[i,i] += conductance
             if bnode != ground:
@@ -234,7 +231,11 @@ def build_coefficients(state, sparse):
             currents.append(component[NCOL])
             cnode = component[CCOL]
             dnode = component[DCOL]
-            driver = components[component[PCOL]]
+            try:
+                driver = components[component[PCOL]]
+            except KeyError:
+                logging.error("Driving component {} not found".format(component[PCOL]))
+                raise
             assert cnode != None
             assert dnode != None
             assert driver != None
@@ -271,7 +272,8 @@ def build_coefficients(state, sparse):
             elif driver[TCOL] == 'A':
                 A[i] = r * driver[VCOL]
             else:
-                exit(1)
+                logging.error("Unknown component type: {}".format(driver[TCOL]))
+                raise ValueError("Unknown component type")
 
         elif component[TCOL] == "CCCS":
             currents.append(component[NCOL])
@@ -291,7 +293,11 @@ def build_coefficients(state, sparse):
             i = j
             assert G[i,i] == 0
             G[i,i] = 1
-            driver = components[component[PCOL]]
+            try:
+                driver = components[component[PCOL]]
+            except KeyError:
+                logging.error("Driving component {} not found".format(component[PCOL]))
+                raise
             # case 1: i_driver is unknown
             if driver[TCOL] == 'R':
                 cnode = component[CCOL]
@@ -321,9 +327,11 @@ def build_coefficients(state, sparse):
                 assert A[i] == 0
                 A[i] = g * driver[VCOL]
             else:
-                exit(1)
+                logging.error("Unknown component type: {}".format(driver[TCOL]))
+                raise ValueError("Unknown component type")
         else:
-            exit(1)
+            logging.error("Unknown component type: {}".format(component[TCOL]))
+            raise ValueError("Unknown component type")
 
     logging.debug("currents={}".format(currents))
     logging.debug("G=\n{}".format(G))
@@ -379,6 +387,8 @@ class Solution(object):
 
 class Circuit(object):
     def __init__(self, netlist, sparse=False):
+        if not isinstance(netlist, Netlist):
+            raise TypeError("Input isn't a netlist")
         self.state = netlist.state
         self.sparse = sparse
         model = build_coefficients(self.state, self.sparse)
@@ -389,10 +399,8 @@ class Circuit(object):
     def solve(self):
         if self.sparse:
             result = solve_sparse_system(self.G, self.A)
-            print(type(result))
         else:
             result = solve_system(self.G, self.A)
-            print(type(result))
         solution = Solution(result, self.state, self.currents)
         return solution
 
