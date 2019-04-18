@@ -4,23 +4,25 @@ import scipy.sparse as spsp
 import scipy.sparse.linalg as spspla
 import csv
 import logging
+
 logging.basicConfig(level=logging.ERROR)
 
 # CSV parsing
-NCOL = 0 # component name
-TCOL = 1 # type of component
-VCOL = 2 # value of component, eg resistance
-ACOL = 3 # node connected to first lead, currents enter here
-BCOL = 4 # node connected to second lead
+NCOL = 0  # component name
+TCOL = 1  # type of component
+VCOL = 2  # value of component, eg resistance
+ACOL = 3  # node connected to first lead, currents enter here
+BCOL = 4  # node connected to second lead
 # for dependent sources:
-CCOL = 5 # first node of controlling variable
-DCOL = 6 # second node of controlling variable
-PCOL = 7 # name of the driving component
+CCOL = 5  # first node of controlling variable
+DCOL = 6  # second node of controlling variable
+PCOL = 7  # name of the driving component
 
 NODE_TYPES_CC = ["CCCS", "CCVS"]
 NODE_TYPES_DEP = ["VCVS", "VCCS"] + NODE_TYPES_CC
 NODE_TYPES_ANOM = ["E"] + NODE_TYPES_DEP
 NODE_TYPES = ["A", "R"] + NODE_TYPES_ANOM
+
 
 def find_ground_node(degrees):
     if "g" in degrees:
@@ -30,6 +32,7 @@ def find_ground_node(degrees):
     logging.debug("ground node-> {}".format(ground))
     return ground
 
+
 def read_netlist(netlist_path):
     components = {}
     # We will need to iterate over components twice
@@ -37,17 +40,17 @@ def read_netlist(netlist_path):
     # TODO make this more memory efficient
     component_keys = []
     try:
-        infile = open(netlist_path, 'r')
+        infile = open(netlist_path, "r")
     except FileNotFoundError:
         logging.error("File does not exist in specified path")
         raise
-    with open(netlist_path, 'r') as infile:
+    with open(netlist_path, "r") as infile:
         netlist = csv.reader(infile)
         nums = {}
         nums["components"] = 0
         nums["anomalies"] = 0
         nums["be"] = 0  # number of branch equations
-        nums["kcl"] = 0 # number of non-ground nodes
+        nums["kcl"] = 0  # number of non-ground nodes
         degrees = {}
         anomnum = {}
         for component in netlist:
@@ -64,9 +67,10 @@ def read_netlist(netlist_path):
             try:
                 newcomp[VCOL] = float(component[VCOL])
             except ValueError:
-                logging.error("Bad input: expected a number for component value of {} \
-                got {} instead".format(component[NCOL], \
-                component[VCOL]))
+                logging.error(
+                    "Bad input: expected a number for component value"
+                    "of {} got {} instead".format(component[NCOL], component[VCOL])
+                )
                 raise
 
             newcomp[ACOL] = component[ACOL]
@@ -82,9 +86,8 @@ def read_netlist(netlist_path):
                 assert len(component) == 5
 
             nums["components"] += 1
-            curnodes = component[ACOL:BCOL+1]
-            newnodes = [key for key in curnodes
-                    if key not in degrees]
+            curnodes = component[ACOL: BCOL + 1]
+            newnodes = [key for key in curnodes if key not in degrees]
             if component[TCOL] in NODE_TYPES_ANOM:
                 anomnum[component[NCOL]] = nums["anomalies"]
                 nums["anomalies"] += 1
@@ -112,16 +115,17 @@ def read_netlist(netlist_path):
     # TODO these variables should become attributes of an object
     return state
 
+
 def build_coefficients(state, sparse):
     [nums, degrees, anomnum, components, component_keys, ground, nodenum] = state
-    n = nums["kcl"] + nums["be"] # number of unknowns
+    n = nums["kcl"] + nums["be"]  # number of unknowns
     if sparse:
-        G = spsp.dok_matrix((n,n), dtype=np.float64)
+        G = spsp.dok_matrix((n, n), dtype=np.float64)
     else:
         G = np.zeros(shape=(n, n))
     A = np.zeros(n)
     currents = []
-    for key in component_keys: # preserve order of iteration
+    for key in component_keys:  # preserve order of iteration
         component = components[key]
         anode = component[ACOL]
         bnode = component[BCOL]
@@ -139,12 +143,12 @@ def build_coefficients(state, sparse):
                 logging.error("Model error: resistors can't have null resistance")
                 raise ValueError
             if anode != ground:
-                G[i,i] += conductance
+                G[i, i] += conductance
             if bnode != ground:
-                G[j,j] += conductance
+                G[j, j] += conductance
             if bnode != ground and anode != ground:
-                G[i,j] -= conductance
-                G[j,i] -= conductance
+                G[i, j] -= conductance
+                G[j, i] -= conductance
 
         elif component[TCOL] == "A":
             current = component[VCOL]
@@ -161,14 +165,14 @@ def build_coefficients(state, sparse):
             A[i] += tension
             if anode != ground:
                 j = nodenum[anode]
-                assert G[i,j] == 0
-                G[i,j] = 1
-                G[j,i] = -1
+                assert G[i, j] == 0
+                G[i, j] = 1
+                G[j, i] = -1
             if bnode != ground:
                 j = nodenum[bnode]
-                assert G[i,j] == 0
-                G[i,j] = -1
-                G[j,i] = 1
+                assert G[i, j] == 0
+                G[i, j] = -1
+                G[j, i] = 1
 
         elif component[TCOL] == "VCVS":
             currents.append(component[NCOL])
@@ -182,20 +186,20 @@ def build_coefficients(state, sparse):
             # ea - eb - r ec + r ed = 0
             if anode != ground:
                 j = nodenum[anode]
-                assert G[i,j] == 0
-                G[i,j] = 1
-                G[j,i] = -1
+                assert G[i, j] == 0
+                G[i, j] = 1
+                G[j, i] = -1
             if bnode != ground:
                 j = nodenum[bnode]
-                assert G[i,j] == 0
-                G[i,j] = -1
-                G[j,i] = 1
+                assert G[i, j] == 0
+                G[i, j] = -1
+                G[j, i] = 1
             if cnode != ground:
                 j = nodenum[cnode]
-                G[i,j] += -r
+                G[i, j] += -r
             if dnode != ground:
                 j = nodenum[dnode]
-                G[i,j] += r
+                G[i, j] += r
 
         elif component[TCOL] == "VCCS":
             currents.append(component[NCOL])
@@ -204,25 +208,25 @@ def build_coefficients(state, sparse):
             j = nums["kcl"] + k
             if anode != ground:
                 i = nodenum[anode]
-                assert G[i,j] == 0
-                G[i,j] = -1
+                assert G[i, j] == 0
+                G[i, j] = -1
             if bnode != ground:
                 i = nodenum[bnode]
-                assert G[i,j] == 0
-                G[i,j] = 1
+                assert G[i, j] == 0
+                G[i, j] = 1
             # we write the branch equation:
             # i_cccs = g (ec - ed)
             # i_cccs - g ec + g ed = 0
             i = j
-            G[i,i] = +1
+            G[i, i] = +1
             cnode = component[CCOL]
             dnode = component[DCOL]
             if cnode != ground:
                 j = nodenum[cnode]
-                G[i,j] = -g
+                G[i, j] = -g
             if dnode != ground:
                 j = nodenum[dnode]
-                G[i,j] = +g
+                G[i, j] = +g
 
         elif component[TCOL] == "CCVS":
             r = component[VCOL]
@@ -236,40 +240,42 @@ def build_coefficients(state, sparse):
             except KeyError:
                 logging.error("Driving component {} not found".format(component[PCOL]))
                 raise
-            assert cnode != None
-            assert dnode != None
-            assert driver != None
-            assert (cnode == driver[ACOL] and dnode == driver[BCOL]) or (cnode == driver[BCOL] and dnode == driver[ACOL])
+            assert cnode is not None
+            assert dnode is not None
+            assert driver is not None
+            assert (cnode == driver[ACOL] and dnode == driver[BCOL]) or (
+                cnode == driver[BCOL] and dnode == driver[ACOL]
+            )
             if anode != ground:
                 j = nodenum[anode]
-                G[i,j] = 1
-                G[j,i] = -1
+                G[i, j] = 1
+                G[j, i] = -1
             if bnode != ground:
                 j = nodenum[bnode]
-                G[i,j] = -1
-                G[j,i] = 1
+                G[i, j] = -1
+                G[j, i] = 1
 
             # we write the branch equation:
             # v_cccv = r * i_driver
             # ea - eb - r * i_driver = 0
-            if driver[TCOL] == 'R':
+            if driver[TCOL] == "R":
                 # i_driver = (ec - ed)/R_driver
                 if cnode != ground:
                     j = nodenum[cnode]
-                    G[i,j] = r / driver[VCOL]
+                    G[i, j] = r / driver[VCOL]
                 if dnode != ground:
                     j = nodenum[dnode]
-                    G[i,j] = -r / driver[VCOL]
+                    G[i, j] = -r / driver[VCOL]
             elif driver[TCOL] in NODE_TYPES_ANOM:
                 j = anomnum[driver[NCOL]]
                 if driver[ACOL] == component[CCOL]:
                     assert driver[BCOL] == component[DCOL]
-                    G[i,j] = -r
+                    G[i, j] = -r
                 else:
                     assert driver[ACOL] == component[DCOL]
                     assert driver[BCOL] == component[CCOL]
-                    G[i,j] = r
-            elif driver[TCOL] == 'A':
+                    G[i, j] = r
+            elif driver[TCOL] == "A":
                 A[i] = r * driver[VCOL]
             else:
                 logging.error("Unknown component type: {}".format(driver[TCOL]))
@@ -282,48 +288,50 @@ def build_coefficients(state, sparse):
             j = nums["kcl"] + k
             if anode != ground:
                 i = nodenum[anode]
-                assert G[i,j] == 0
-                G[i,j] = -1
+                assert G[i, j] == 0
+                G[i, j] = -1
             if bnode != ground:
                 i = nodenum[bnode]
-                assert G[i,j] == 0
-                G[i,j] = 1
+                assert G[i, j] == 0
+                G[i, j] = 1
             # we write the branch equation:
             # i_cccs = g * i_driver
             i = j
-            assert G[i,i] == 0
-            G[i,i] = 1
+            assert G[i, i] == 0
+            G[i, i] = 1
             try:
                 driver = components[component[PCOL]]
             except KeyError:
                 logging.error("Driving component {} not found".format(component[PCOL]))
                 raise
             # case 1: i_driver is unknown
-            if driver[TCOL] == 'R':
+            if driver[TCOL] == "R":
                 cnode = component[CCOL]
                 dnode = component[DCOL]
-                assert (cnode == driver[ACOL] and dnode == driver[BCOL]) or (cnode == driver[BCOL] and dnode == driver[ACOL])
-                assert cnode != None
-                assert dnode != None
+                assert (cnode == driver[ACOL] and dnode == driver[BCOL]) or (
+                    cnode == driver[BCOL] and dnode == driver[ACOL]
+                )
+                assert cnode is not None
+                assert dnode is not None
                 if cnode != ground:
                     j = nodenum[cnode]
-                    assert G[i,j] == 0
-                    G[i,j] = +g / driver[VCOL]
+                    assert G[i, j] == 0
+                    G[i, j] = +g / driver[VCOL]
                 if dnode != ground:
                     j = nodenum[dnode]
-                    assert G[i,j] == 0
-                    G[i,j] = -g / driver[VCOL]
+                    assert G[i, j] == 0
+                    G[i, j] = -g / driver[VCOL]
             elif driver[TCOL] in NODE_TYPES_ANOM:
                 j = anomnum[driver[NCOL]]
                 if driver[ACOL] == component[CCOL]:
                     assert driver[BCOL] == component[DCOL]
-                    G[i,j] = -g
+                    G[i, j] = -g
                 else:
                     assert driver[ACOL] == component[DCOL]
                     assert driver[BCOL] == component[CCOL]
-                    G[i,j] = g
+                    G[i, j] = g
             # case 2: i_driver is known
-            elif driver[TCOL] == 'A':
+            elif driver[TCOL] == "A":
                 assert A[i] == 0
                 A[i] = g * driver[VCOL]
             else:
@@ -340,6 +348,7 @@ def build_coefficients(state, sparse):
         G = G.tocsr()
     return [G, A, currents]
 
+
 def solve_system(G, A):
     try:
         e = np.linalg.solve(G, A)
@@ -348,6 +357,7 @@ def solve_system(G, A):
         logging.debug(G)
         raise
     return e
+
 
 def solve_sparse_system(G, A):
     try:
@@ -358,9 +368,11 @@ def solve_sparse_system(G, A):
         raise
     return e
 
+
 class Netlist(object):
     def __init__(self, path):
         self.state = read_netlist(path)
+
 
 class Solution(object):
     def __init__(self, result, state, currents):
@@ -385,6 +397,7 @@ class Solution(object):
             output += "\ni({}) \t= {}".format(name, current)
         return output
 
+
 class Circuit(object):
     def __init__(self, netlist, sparse=False):
         if not isinstance(netlist, Netlist):
@@ -403,4 +416,3 @@ class Circuit(object):
             result = solve_system(self.G, self.A)
         solution = Solution(result, self.state, self.currents)
         return solution
-
