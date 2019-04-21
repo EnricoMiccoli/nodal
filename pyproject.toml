@@ -1,0 +1,11 @@
+[build-system]
+requires = ["flit"]
+build-backend = "flit.buildapi"
+
+[tool.flit.metadata]
+module = "nodal"
+author = "Enrico Miccoli"
+author-email = ""
+home-page = "https://github.com/EnricoMiccoli/nodal"
+classifiers = ["License :: OSI Approved :: MIT License"]
+
