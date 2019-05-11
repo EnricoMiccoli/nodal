@@ -8,4 +8,6 @@ author = "Enrico Miccoli"
 author-email = ""
 home-page = "https://github.com/EnricoMiccoli/nodal"
 classifiers = ["License :: OSI Approved :: MIT License"]
+requires = ["scipy"]
+requires-python=">=3"
 
