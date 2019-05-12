@@ -1,6 +1,19 @@
 # Nodal.py
 Nodal.py is a simple electrical circuit simulator that uses nodal analysis to solve linear networks made up of resistors and ideal current or voltage sources, both independent and controlled. The numerical work is done by the [numpy](https://www.numpy.org/) package.
 
+## Installation
+To get the stable release [download it](https://github.com/EnricoMiccoli/nodal/releases/latest) and run
+```
+$ pip install nodal-1.0.0.whl
+```
+
+To try out the latest developments use [`flit`](https://github.com/takluyver/flit) instead:
+```
+$ git clone https://github.com/EnricoMiccoli/nodal.git
+$ cd nodal
+$ flit install
+```
+
 ## Usage example
 Suppose we wanted to solve this circuit:
 
