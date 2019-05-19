@@ -11,3 +11,5 @@ classifiers = ["License :: OSI Approved :: MIT License"]
 requires = ["scipy"]
 requires-python=">=3"
 
+[tool.flit.scripts]
+nodal-solver = "nodal.solver:main"

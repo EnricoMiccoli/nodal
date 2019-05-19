@@ -35,7 +35,7 @@ Take notice of the orientation of the current generator: current flows toward th
 
 Default units are ampere and ohm.
 
-We can then execute `$ python solver.py netlist.csv` to get the list of node potentials (unit is volt).
+We can then execute `$ nodal-solver netlist.csv` to get the list of node potentials (unit is volt).
 
 Printed output:
 ```

@@ -1,7 +1,7 @@
 import nodal as n
 import sys
 
-if __name__ == "__main__":
+def main():
     if len(sys.argv) >= 2:
         netlist_path = sys.argv[1]
     else:
@@ -20,3 +20,6 @@ if __name__ == "__main__":
     circuit = n.Circuit(netlist, sparse=sparse)
     solution = circuit.solve()
     print(solution)
+
+if __name__ == "__main__":
+    main()
