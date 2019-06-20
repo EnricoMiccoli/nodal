@@ -1,25 +1,28 @@
 import nodal as n
-import sys
+import os
+import argparse
+
+parser = argparse.ArgumentParser(
+    description="Solve electrical circuits using nodal analysis"
+)
+parser.add_argument(
+    "netlist_path", metavar="FILE", help="csv file describing the netlist"
+)
+parser.add_argument("-s", "--sparse", action="store_true", help="use a sparse matrix")
+
 
 def main():
-    if len(sys.argv) >= 2:
-        netlist_path = sys.argv[1]
-    else:
-        print("Missing argument: netlist file")
-        exit(1)
-    if len(sys.argv) == 3:
-        sparse = sys.argv[2] == "sparse"
-    else:
-        sparse = False
+    args = parser.parse_args()
 
-    try:
-        netlist = n.Netlist(netlist_path)
-    except FileNotFoundError:
-        print("File not found: {}".format(netlist_path))
+    if os.path.isfile(args.netlist_path):
+        netlist = n.Netlist(args.netlist_path)
+    else:
+        print("File not found: {}".format(args.netlist_path))
         exit(1)
-    circuit = n.Circuit(netlist, sparse=sparse)
+    circuit = n.Circuit(netlist, sparse=args.sparse)
     solution = circuit.solve()
     print(solution)
+
 
 if __name__ == "__main__":
     main()
