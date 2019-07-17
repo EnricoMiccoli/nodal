@@ -44,7 +44,7 @@ e(1)    = 1.0
 e(3)    = -1.0
 ```
 
-## A more advanced example
+### A more advanced example
 
 ![Circuit diagram](doc/1.6.1.png)
 
@@ -69,6 +69,9 @@ e(4)    = 8.0
 i(d1)   = -2.0
 i(e1)   = 3.0
 ```
+
+### A more contrived example
+[What is the resistance between two points that are a knight's move away on an infinite grid of 1 ohm resistors?](https://enricomiccoli.github.io/2019/03/20/xkcd-356-infinite-grid-resistors.html)
 
 # Complete component specification
 
