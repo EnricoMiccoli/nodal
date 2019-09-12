@@ -21,7 +21,18 @@ PCOL = 7  # name of the driving component
 NODE_TYPES_CC = ["CCCS", "CCVS"]
 NODE_TYPES_DEP = ["VCVS", "VCCS"] + NODE_TYPES_CC
 NODE_TYPES_ANOM = ["E"] + NODE_TYPES_DEP
-NODE_TYPES = ["A", "R"] + NODE_TYPES_ANOM
+NODE_TYPES = ["A", "R"] + NODE_TYPES_ANOM + ["OPAMP"]
+
+NODE_ARGS_NUMBER = {
+    "OPAMP": 7,
+    "R": 5,
+    "A": 5,
+    "E": 5,
+    "VCCS": 7,
+    "VCVS": 7,
+    "CCCS": 8,
+    "CCVS": 8,
+}
 
 
 def find_ground_node(degrees):
@@ -33,17 +44,43 @@ def find_ground_node(degrees):
     return ground
 
 
+def check_input_component(component):
+    key = component[NCOL]
+    assert type(key) == str
+
+    s = len(component)
+    if s < 5:
+        logging.error(f"Missign arguments for component {key}")
+        raise ValueError
+    ctype = component[TCOL]
+
+    if ctype not in NODE_TYPES:
+        logging.error(f"Unknown type {ctype} for component {key}")
+        raise ValueError
+
+    n = NODE_ARGS_NUMBER[ctype]
+    if s != n:
+        logging.error(
+            f"Wrong number of arguments for component {key}: " f"expected {n}, got {s}"
+        )
+        raise ValueError
+
+
 def read_netlist(netlist_path):
     components = {}
     # We will need to iterate over components twice
     # in the same order, so we save keys
     # TODO make this more memory efficient
     component_keys = []
+
     try:
         infile = open(netlist_path, "r")
     except FileNotFoundError:
         logging.error("File does not exist in specified path")
         raise
+
+    # Iterate over components in the netlist file
+    #TODO skip empty lines and comments
     with open(netlist_path, "r") as infile:
         netlist = csv.reader(infile)
         nums = {}
@@ -51,42 +88,48 @@ def read_netlist(netlist_path):
         nums["anomalies"] = 0
         nums["be"] = 0  # number of branch equations
         nums["kcl"] = 0  # number of non-ground nodes
+        nums["opamps"] = 0
         degrees = {}
         anomnum = {}
         for component in netlist:
+
+            # Check for proper input
+            check_input_component(component)
+
+            # Initialize the new component
             key = component[NCOL]
-            assert type(key) == str
+            ctype = component[TCOL]
             component_keys.append(key)
             components[key] = [None] * 8
 
             newcomp = components[key]
             newcomp[NCOL] = key
-            assert component[TCOL] in NODE_TYPES
-            newcomp[TCOL] = component[TCOL]
+            newcomp[TCOL] = ctype
 
+            # Assign value
             try:
                 newcomp[VCOL] = float(component[VCOL])
             except ValueError:
                 logging.error(
-                    "Bad input: expected a number for component value"
+                    "Bad input: expected a number for component value "
                     "of {} got {} instead".format(component[NCOL], component[VCOL])
                 )
                 raise
 
+            # Assign positive and negative leads
             newcomp[ACOL] = component[ACOL]
             newcomp[BCOL] = component[BCOL]
+
+            # Assign type
             if component[TCOL] in NODE_TYPES_DEP:
                 newcomp[CCOL] = component[CCOL]
                 newcomp[DCOL] = component[DCOL]
                 if component[TCOL] in NODE_TYPES_CC:
                     newcomp[PCOL] = component[PCOL]
-                else:
-                    assert len(component) == 7
-            else:
-                assert len(component) == 5
 
+            # Update the different component counts
             nums["components"] += 1
-            curnodes = component[ACOL: BCOL + 1]
+            curnodes = component[ACOL : BCOL + 1]
             newnodes = [key for key in curnodes if key not in degrees]
             if component[TCOL] in NODE_TYPES_ANOM:
                 anomnum[component[NCOL]] = nums["anomalies"]
@@ -96,14 +139,18 @@ def read_netlist(netlist_path):
             for node in curnodes:
                 degrees[node] += 1
 
+    # Set ground node
     ground = find_ground_node(degrees)
 
+    # Update node counts
     i = 0
     nodenum = {}
     for node in [k for k in degrees.keys() if k != ground]:
         nodenum[node] = i
         i += 1
     assert len(nodenum) == len(degrees) - 1
+
+    # Update equations count
     logging.debug("nodenum={}".format(nodenum))
     nums["kcl"] = len(nodenum)
     nums["be"] = nums["anomalies"]
@@ -337,6 +384,10 @@ def build_coefficients(state, sparse):
             else:
                 logging.error("Unknown component type: {}".format(driver[TCOL]))
                 raise ValueError("Unknown component type")
+
+        elif component[TCOL] == "OPAMP":
+            raise NotImplementedError
+
         else:
             logging.error("Unknown component type: {}".format(component[TCOL]))
             raise ValueError("Unknown component type")
