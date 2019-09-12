@@ -78,6 +78,7 @@ def read_netlist(netlist_path):
     except FileNotFoundError:
         logging.error("File does not exist in specified path")
         raise
+    infile.close()
 
     # Iterate over components in the netlist file
     #TODO skip empty lines and comments
