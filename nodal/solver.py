@@ -1,6 +1,7 @@
-import nodal as n
-import os
 import argparse
+import os
+
+import nodal as n
 
 parser = argparse.ArgumentParser(
     description="Solve electrical circuits using nodal analysis"

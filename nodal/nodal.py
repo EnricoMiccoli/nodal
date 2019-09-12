@@ -1,9 +1,10 @@
+import csv
+import logging
+
 import numpy as np
 import scipy as sp
 import scipy.sparse as spsp
 import scipy.sparse.linalg as spspla
-import csv
-import logging
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -174,7 +175,7 @@ def read_netlist(netlist_path):
 
 
 def build_coefficients(state, sparse):
-    [nums, degrees, anomnum, components, component_keys, ground, nodenum] = state
+    [nums, _, anomnum, components, component_keys, ground, nodenum] = state
     n = nums["kcl"] + nums["be"]  # number of unknowns
     if sparse:
         G = spsp.dok_matrix((n, n), dtype=np.float64)
@@ -188,10 +189,10 @@ def build_coefficients(state, sparse):
         bnode = component[BCOL]
         if anode != ground:
             i = nodenum[anode]
-            assert i >= 0 and i <= nums["kcl"]
+            assert 0 <= i <= nums["kcl"]
         if bnode != ground:
             j = nodenum[bnode]
-            assert j >= 0 and j <= nums["kcl"]
+            assert 0 <= j <= nums["kcl"]
 
         if component[TCOL] == "R":
             try:
@@ -430,12 +431,12 @@ def solve_sparse_system(G, A):
     return e
 
 
-class Netlist(object):
+class Netlist:
     def __init__(self, path):
         self.state = read_netlist(path)
 
 
-class Solution(object):
+class Solution:
     def __init__(self, result, state, currents):
         self.result = result
         self.nodenum = state[6]
@@ -459,7 +460,7 @@ class Solution(object):
         return output
 
 
-class Circuit(object):
+class Circuit:
     def __init__(self, netlist, sparse=False):
         if not isinstance(netlist, Netlist):
             raise TypeError("Input isn't a netlist")
