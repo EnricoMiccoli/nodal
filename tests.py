@@ -1,9 +1,9 @@
+import io
 import logging
 import unittest
 import unittest.mock
+
 import nodal as n
-import io
-import sys
 
 
 class IntegratedTest(unittest.TestCase):
