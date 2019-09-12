@@ -19,9 +19,33 @@ class IntegratedTest(unittest.TestCase):
     # Triple caution!!!
     # For mock.patch to work correctly, test cases must be named test_something.
     # I find this horrible, might change later
-    def test_print(self):
+    def test_doc_1_6_1(self):
         path = "doc/1.6.1.csv"
-        expected = "Ground node: g\ne(1) \t= 2.0\ne(2) \t= -1.0\ne(4) \t= 8.0\ni(d1) \t= -1.9999999999999998\ni(e1) \t= 3.0\n"
+        expected = (
+            "Ground node: g\n"
+            "e(1) \t= 2.0\n"
+            "e(2) \t= -1.0\n"
+            "e(4) \t= 8.0\n"
+            "i(d1) \t= -1.9999999999999998\n"
+            "i(e1) \t= 3.0\n"
+        )
+        self.assert_print(path, expected)
+
+    def test_doc_buffer(self):
+        path = "doc/buffer.csv"
+        expected = (
+            "Ground node: g\n"
+            "e(1) \t= 9.999900000999991\n"
+            "e(2) \t= 9.999900000899993\n"
+            "e(3) \t= 10.0\n"
+            "i(d1) \t= -9.999889805101247e-12\n"
+            "i(vs) \t= 9.999900000899993e-12\n"
+        )
+        self.assert_print(path, expected)
+
+    def test_doc_netlist(self):
+        path = "doc/netlist.csv"
+        expected = "Ground node: 1\n" "e(2) \t= -1.0\n" "e(3) \t= -2.0\n"
         self.assert_print(path, expected)
 
 
