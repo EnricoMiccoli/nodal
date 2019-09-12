@@ -39,9 +39,9 @@ We can then execute `$ nodal-solver netlist.csv` to get the list of node potenti
 
 Printed output:
 ```
-Ground node: 2
-e(1)    = 1.0
-e(3)    = -1.0
+Ground node: 1
+e(2)    = -1.0
+e(3)    = -2.0
 ```
 
 ### A more advanced example
