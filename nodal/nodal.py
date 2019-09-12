@@ -81,7 +81,7 @@ def read_netlist(netlist_path):
     infile.close()
 
     # Iterate over components in the netlist file
-    #TODO skip empty lines and comments
+    # TODO skip empty lines and comments
     with open(netlist_path, "r") as infile:
         netlist = csv.reader(infile)
         nums = {}
@@ -286,7 +286,7 @@ def build_coefficients(state, sparse):
             try:
                 driver = components[component[PCOL]]
             except KeyError:
-                logging.error("Driving component {} not found".format(component[PCOL]))
+                logging.error(f"Driving component {component[PCOL]} not found")
                 raise
             assert cnode is not None
             assert dnode is not None
@@ -350,7 +350,7 @@ def build_coefficients(state, sparse):
             try:
                 driver = components[component[PCOL]]
             except KeyError:
-                logging.error("Driving component {} not found".format(component[PCOL]))
+                logging.error(f"Driving component {component[PCOL]} not found")
                 raise
             # case 1: i_driver is unknown
             if driver[TCOL] == "R":
