@@ -79,7 +79,6 @@ class InputTesters(unittest.TestCase):
             "Ro,R,1e1,1,2",
             "vs,E,10,3,g",
             "d1,VCVS,1e5,2,g,3,1",
-            # TODO '' # skip empty line
         ]
 
         for bad in bad_inputs:
@@ -94,6 +93,19 @@ class InputTesters(unittest.TestCase):
                 n.check_input_component(good.split(","))
             except ValueError:
                 assert False
+
+    def test_check_input_component_empty_line(self):
+        try:
+            n.check_input_component([])
+        except ValueError:
+            assert False
+
+    def test_check_input_component_comment(self):
+        good = "# This is a comment"
+        try:
+            n.check_input_component(good)
+        except ValueError:
+            assert False
 
 
 if __name__ == "__main__":

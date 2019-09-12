@@ -1,4 +1,7 @@
-Ri,R,1e7,1,3
-Ro,R,1e1,1,2
-vs,E,10,3,g
-d1,VCVS,1e5,2,g,3,1
+# This netlist models an opamp as a VCVS
+# Here is a voltage buffer:
+
+Ri, R, 1e7, 1, 3
+Ro, R, 1e1, 1, 2
+vs, E, 10, 3, g
+d1, VCVS, 1e5, 2, g, 3, 1

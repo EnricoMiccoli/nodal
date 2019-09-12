@@ -45,25 +45,31 @@ def find_ground_node(degrees):
 
 
 def check_input_component(component):
+    s = len(component)
+    if s == 0 or component[0][0] == "#":
+        return
+
     key = component[NCOL]
     assert type(key) == str
 
-    s = len(component)
     if s < 5:
         logging.error(f"Missign arguments for component {key}")
-        raise ValueError
+        raise ValueError(f"Missign arguments for component {key}")
+
     ctype = component[TCOL]
 
     if ctype not in NODE_TYPES:
         logging.error(f"Unknown type {ctype} for component {key}")
-        raise ValueError
+        raise ValueError(f"Unknown type {ctype} for component {key}")
 
     n = NODE_ARGS_NUMBER[ctype]
     if s != n:
         logging.error(
             f"Wrong number of arguments for component {key}: " f"expected {n}, got {s}"
         )
-        raise ValueError
+        raise ValueError(
+            f"Wrong number of arguments for component {key}: " f"expected {n}, got {s}"
+        )
 
 
 def read_netlist(netlist_path):
@@ -81,9 +87,8 @@ def read_netlist(netlist_path):
     infile.close()
 
     # Iterate over components in the netlist file
-    # TODO skip empty lines and comments
     with open(netlist_path, "r") as infile:
-        netlist = csv.reader(infile)
+        netlist = csv.reader(infile, skipinitialspace=True)
         nums = {}
         nums["components"] = 0
         nums["anomalies"] = 0
@@ -96,6 +101,10 @@ def read_netlist(netlist_path):
 
             # Check for proper input
             check_input_component(component)
+
+            # Skip comments and empty lines
+            if component == [] or component[0][0] == "#":
+                continue
 
             # Initialize the new component
             key = component[NCOL]
