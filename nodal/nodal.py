@@ -54,20 +54,15 @@ def check_input_component(component):
     assert type(key) == str
 
     if s < 5:
-        logging.error(f"Missign arguments for component {key}")
-        raise ValueError(f"Missign arguments for component {key}")
+        raise ValueError(f"Missing arguments for component {key}")
 
     ctype = component[TCOL]
 
     if ctype not in NODE_TYPES:
-        logging.error(f"Unknown type {ctype} for component {key}")
         raise ValueError(f"Unknown type {ctype} for component {key}")
 
     n = NODE_ARGS_NUMBER[ctype]
     if s != n:
-        logging.error(
-            f"Wrong number of arguments for component {key}: " f"expected {n}, got {s}"
-        )
         raise ValueError(
             f"Wrong number of arguments for component {key}: " f"expected {n}, got {s}"
         )
@@ -121,11 +116,10 @@ def read_netlist(netlist_path):
             try:
                 newcomp[VCOL] = float(component[VCOL])
             except ValueError:
-                logging.error(
+                raise ValueError(
                     "Bad input: expected a number for component value "
-                    "of {} got {} instead".format(component[NCOL], component[VCOL])
+                    "of {}, got {} instead".format(component[NCOL], component[VCOL])
                 )
-                raise
 
             # Assign positive and negative leads
             newcomp[ACOL] = component[ACOL]
@@ -198,8 +192,7 @@ def build_coefficients(state, sparse):
             try:
                 conductance = 1 / component[VCOL]
             except ZeroDivisionError:
-                logging.error("Model error: resistors can't have null resistance")
-                raise ValueError
+                raise ValueError("Model error: resistors can't have null resistance")
             if anode != ground:
                 G[i, i] += conductance
             if bnode != ground:
@@ -296,8 +289,7 @@ def build_coefficients(state, sparse):
             try:
                 driver = components[component[PCOL]]
             except KeyError:
-                logging.error(f"Driving component {component[PCOL]} not found")
-                raise
+                raise KeyError(f"Driving component {component[PCOL]} not found")
             assert cnode is not None
             assert dnode is not None
             assert driver is not None
@@ -336,8 +328,7 @@ def build_coefficients(state, sparse):
             elif driver[TCOL] == "A":
                 A[i] = r * driver[VCOL]
             else:
-                logging.error("Unknown component type: {}".format(driver[TCOL]))
-                raise ValueError("Unknown component type")
+                raise ValueError(f"Unknown component type: {driver[TCOL]}")
 
         elif component[TCOL] == "CCCS":
             currents.append(component[NCOL])
@@ -360,8 +351,7 @@ def build_coefficients(state, sparse):
             try:
                 driver = components[component[PCOL]]
             except KeyError:
-                logging.error(f"Driving component {component[PCOL]} not found")
-                raise
+                raise KeyError(f"Driving component {component[PCOL]} not found")
             # case 1: i_driver is unknown
             if driver[TCOL] == "R":
                 cnode = component[CCOL]
@@ -393,15 +383,13 @@ def build_coefficients(state, sparse):
                 assert A[i] == 0
                 A[i] = g * driver[VCOL]
             else:
-                logging.error("Unknown component type: {}".format(driver[TCOL]))
-                raise ValueError("Unknown component type")
+                raise ValueError(f"Unknown component type: {driver[TCOL]}")
 
         elif component[TCOL] == "OPAMP":
             raise NotImplementedError
 
         else:
-            logging.error("Unknown component type: {}".format(component[TCOL]))
-            raise ValueError("Unknown component type")
+            raise ValueError(f"Unknown component type: {driver[TCOL]}")
 
     logging.debug("currents={}".format(currents))
     logging.debug("G=\n{}".format(G))
