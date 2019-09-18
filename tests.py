@@ -108,6 +108,23 @@ class InputTesters(unittest.TestCase):
             assert False
 
 
+class GroundNode(unittest.TestCase):
+    def test_explicit_ground_node(self):
+        inputs = [{"g": 1}, {"g": 1, "a": 10, "b": 2}]
+        for deg in inputs:
+            assert n.find_ground_node(deg) == "g"
+
+    def test_highest_degree_ground_node(self):
+        inputs = [({"1": 1}, "1"), ({"3": 1, "a": 10, "b": 2}, "a")]
+        for deg, expected in inputs:
+            assert n.find_ground_node(deg) == expected
+
+    def test_stable_sorting_ground_node(self):
+        inputs = [({"1": 1, "2": 1}, "1"), ({"3": 1, "a": 10, "b": 10}, "a")]
+        for deg, expected in inputs:
+            assert n.find_ground_node(deg) == expected
+
+
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.CRITICAL)
     unittest.main()
