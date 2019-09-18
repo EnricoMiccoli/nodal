@@ -76,24 +76,6 @@ def check_input_component(data):
         )
 
 
-def build_component(data):
-    new_component = [None] * 8
-
-    new_component[NCOL] = data[NCOL]
-    new_component[TCOL] = data[TCOL]
-    new_component[VCOL] = float(data[VCOL])
-    new_component[ACOL] = data[ACOL]
-    new_component[BCOL] = data[BCOL]
-
-    if data[TCOL] in NODE_TYPES_DEP:
-        new_component[CCOL] = data[CCOL]
-        new_component[DCOL] = data[DCOL]
-        if data[TCOL] in NODE_TYPES_CC:
-            new_component[PCOL] = data[PCOL]
-
-    return new_component
-
-
 def read_netlist(netlist_path):
     components = {}
     # We will need to iterate over components twice
@@ -121,17 +103,17 @@ def read_netlist(netlist_path):
         anomnum = {}
         for data in netlist:
 
-            # Check for proper input
-            check_input_component(data)
-
             # Skip comments and empty lines
             if data == [] or data[0][0] == "#":
                 continue
 
             # Build the new component
+            try:
+                newcomp = Component(data)
+            except ValueError:
+                raise
             key = data[NCOL]
             component_keys.append(key)
-            newcomp = build_component(data)
             components[key] = newcomp
 
             # Update the different component counts
@@ -181,8 +163,8 @@ def build_coefficients(state, sparse):
     currents = []
     for key in component_keys:  # preserve order of iteration
         component = components[key]
-        anode = component[ACOL]
-        bnode = component[BCOL]
+        anode = component.anode
+        bnode = component.bnode
         if anode != ground:
             i = nodenum[anode]
             assert 0 <= i <= nums["kcl"]
@@ -190,9 +172,9 @@ def build_coefficients(state, sparse):
             j = nodenum[bnode]
             assert 0 <= j <= nums["kcl"]
 
-        if component[TCOL] == "R":
+        if component.type == "R":
             try:
-                conductance = 1 / component[VCOL]
+                conductance = 1 / component.value
             except ZeroDivisionError:
                 raise ValueError("Model error: resistors can't have null resistance")
             if anode != ground:
@@ -203,18 +185,18 @@ def build_coefficients(state, sparse):
                 G[i, j] -= conductance
                 G[j, i] -= conductance
 
-        elif component[TCOL] == "A":
-            current = component[VCOL]
+        elif component.type == "A":
+            current = component.value
             if anode != ground:
                 A[i] += current
             if bnode != ground:
                 A[j] -= current
 
-        elif component[TCOL] == "E":
-            tension = component[VCOL]
-            k = anomnum[component[NCOL]]
+        elif component.type == "E":
+            tension = component.value
+            k = anomnum[component.name]
             i = nums["kcl"] + k
-            currents.append(component[NCOL])
+            currents.append(component.name)
             A[i] += tension
             if anode != ground:
                 j = nodenum[anode]
@@ -227,13 +209,13 @@ def build_coefficients(state, sparse):
                 G[i, j] = -1
                 G[j, i] = 1
 
-        elif component[TCOL] == "VCVS":
-            currents.append(component[NCOL])
-            r = component[VCOL]
-            k = anomnum[component[NCOL]]
+        elif component.type == "VCVS":
+            currents.append(component.name)
+            r = component.value
+            k = anomnum[component.name]
             i = nums["kcl"] + k
-            cnode = component[CCOL]
-            dnode = component[DCOL]
+            cnode = component.pos_control
+            dnode = component.neg_control
             # we need to write this BE:
             # ea - eb = r (ec - ed)
             # ea - eb - r ec + r ed = 0
@@ -254,10 +236,10 @@ def build_coefficients(state, sparse):
                 j = nodenum[dnode]
                 G[i, j] += r
 
-        elif component[TCOL] == "VCCS":
-            currents.append(component[NCOL])
-            g = component[VCOL]
-            k = anomnum[component[NCOL]]
+        elif component.type == "VCCS":
+            currents.append(component.name)
+            g = component.value
+            k = anomnum[component.name]
             j = nums["kcl"] + k
             if anode != ground:
                 i = nodenum[anode]
@@ -272,8 +254,8 @@ def build_coefficients(state, sparse):
             # i_cccs - g ec + g ed = 0
             i = j
             G[i, i] = +1
-            cnode = component[CCOL]
-            dnode = component[DCOL]
+            cnode = component.pos_control
+            dnode = component.neg_control
             if cnode != ground:
                 j = nodenum[cnode]
                 G[i, j] = -g
@@ -281,22 +263,22 @@ def build_coefficients(state, sparse):
                 j = nodenum[dnode]
                 G[i, j] = +g
 
-        elif component[TCOL] == "CCVS":
-            r = component[VCOL]
-            k = anomnum[component[NCOL]]
+        elif component.type == "CCVS":
+            r = component.value
+            k = anomnum[component.name]
             i = nums["kcl"] + k
-            currents.append(component[NCOL])
-            cnode = component[CCOL]
-            dnode = component[DCOL]
+            currents.append(component.name)
+            cnode = component.pos_control
+            dnode = component.neg_control
             try:
-                driver = components[component[PCOL]]
+                driver = components[component.driver]
             except KeyError:
-                raise KeyError(f"Driving component {component[PCOL]} not found")
+                raise KeyError(f"Driving component {component.driver} not found")
             assert cnode is not None
             assert dnode is not None
             assert driver is not None
-            assert (cnode == driver[ACOL] and dnode == driver[BCOL]) or (
-                cnode == driver[BCOL] and dnode == driver[ACOL]
+            assert (cnode == driver.anode and dnode == driver.bnode) or (
+                cnode == driver.bnode and dnode == driver.anode
             )
             if anode != ground:
                 j = nodenum[anode]
@@ -310,32 +292,32 @@ def build_coefficients(state, sparse):
             # we write the branch equation:
             # v_cccv = r * i_driver
             # ea - eb - r * i_driver = 0
-            if driver[TCOL] == "R":
+            if driver.type == "R":
                 # i_driver = (ec - ed)/R_driver
                 if cnode != ground:
                     j = nodenum[cnode]
-                    G[i, j] = r / driver[VCOL]
+                    G[i, j] = r / driver.value
                 if dnode != ground:
                     j = nodenum[dnode]
-                    G[i, j] = -r / driver[VCOL]
-            elif driver[TCOL] in NODE_TYPES_ANOM:
-                j = anomnum[driver[NCOL]]
-                if driver[ACOL] == component[CCOL]:
-                    assert driver[BCOL] == component[DCOL]
+                    G[i, j] = -r / driver.value
+            elif driver.type in NODE_TYPES_ANOM:
+                j = anomnum[driver.name]
+                if driver.anode == component.pos_control:
+                    assert driver.bnode == component.neg_control
                     G[i, j] = -r
                 else:
-                    assert driver[ACOL] == component[DCOL]
-                    assert driver[BCOL] == component[CCOL]
+                    assert driver.anode == component.neg_control
+                    assert driver.bnode == component.pos_control
                     G[i, j] = r
-            elif driver[TCOL] == "A":
-                A[i] = r * driver[VCOL]
+            elif driver.type == "A":
+                A[i] = r * driver.value
             else:
-                raise ValueError(f"Unknown component type: {driver[TCOL]}")
+                raise ValueError(f"Unknown component type: {driver.type}")
 
-        elif component[TCOL] == "CCCS":
-            currents.append(component[NCOL])
-            g = component[VCOL]
-            k = anomnum[component[NCOL]]
+        elif component.type == "CCCS":
+            currents.append(component.name)
+            g = component.value
+            k = anomnum[component.name]
             j = nums["kcl"] + k
             if anode != ground:
                 i = nodenum[anode]
@@ -351,47 +333,47 @@ def build_coefficients(state, sparse):
             assert G[i, i] == 0
             G[i, i] = 1
             try:
-                driver = components[component[PCOL]]
+                driver = components[component.driver]
             except KeyError:
-                raise KeyError(f"Driving component {component[PCOL]} not found")
+                raise KeyError(f"Driving component {component.driver} not found")
             # case 1: i_driver is unknown
-            if driver[TCOL] == "R":
-                cnode = component[CCOL]
-                dnode = component[DCOL]
-                assert (cnode == driver[ACOL] and dnode == driver[BCOL]) or (
-                    cnode == driver[BCOL] and dnode == driver[ACOL]
+            if driver.type == "R":
+                cnode = component.pos_control
+                dnode = component.neg_control
+                assert (cnode == driver.anode and dnode == driver.bnode) or (
+                    cnode == driver.bnode and dnode == driver.anode
                 )
                 assert cnode is not None
                 assert dnode is not None
                 if cnode != ground:
                     j = nodenum[cnode]
                     assert G[i, j] == 0
-                    G[i, j] = +g / driver[VCOL]
+                    G[i, j] = +g / driver.value
                 if dnode != ground:
                     j = nodenum[dnode]
                     assert G[i, j] == 0
-                    G[i, j] = -g / driver[VCOL]
-            elif driver[TCOL] in NODE_TYPES_ANOM:
-                j = anomnum[driver[NCOL]]
-                if driver[ACOL] == component[CCOL]:
-                    assert driver[BCOL] == component[DCOL]
+                    G[i, j] = -g / driver.value
+            elif driver.type in NODE_TYPES_ANOM:
+                j = anomnum[driver.name]
+                if driver.anode == component.pos_control:
+                    assert driver.bnode == component.neg_control
                     G[i, j] = -g
                 else:
-                    assert driver[ACOL] == component[DCOL]
-                    assert driver[BCOL] == component[CCOL]
+                    assert driver.anode == component.neg_control
+                    assert driver.bnode == component.pos_control
                     G[i, j] = g
             # case 2: i_driver is known
-            elif driver[TCOL] == "A":
+            elif driver.type == "A":
                 assert A[i] == 0
-                A[i] = g * driver[VCOL]
+                A[i] = g * driver.value
             else:
-                raise ValueError(f"Unknown component type: {driver[TCOL]}")
+                raise ValueError(f"Unknown component type: {driver.type}")
 
-        elif component[TCOL] == "OPAMP":
+        elif component.type == "OPAMP":
             raise NotImplementedError
 
         else:
-            raise ValueError(f"Unknown component type: {driver[TCOL]}")
+            raise ValueError(f"Unknown component type: {driver.type}")
 
     logging.debug("currents={}".format(currents))
     logging.debug("G=\n{}".format(G))
@@ -419,6 +401,28 @@ def solve_sparse_system(G, A):
         logging.debug(G)
         raise
     return e
+
+
+class Component:
+    def __init__(self, data):
+        check_input_component(data)
+
+        self.name = data[NCOL]
+        self.type = data[TCOL]
+        self.value = float(data[VCOL])
+        self.anode = data[ACOL]
+        self.bnode = data[BCOL]
+
+        if data[TCOL] in NODE_TYPES_DEP:
+            self.pos_control = data[CCOL]
+            self.neg_control = data[DCOL]
+            if data[TCOL] in NODE_TYPES_CC:
+                self.driver = data[PCOL]
+            else:
+                self.driver = None
+        else:
+            self.pos_control = None
+            self.neg_control = None
 
 
 class Netlist:
