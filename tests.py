@@ -62,7 +62,7 @@ class InputTesters(unittest.TestCase):
             "r1,A,5,1,2,3",
             "r1,E,5,1,2,3",
             "v1,VoltageSource,5,1,2",  # unknown type
-            # TODO 'r1,R,one_ohm,1,2', # not a float
+            "r1,R,one_ohm,1,2",  # not a float
         ]
         good_inputs = [
             "r1,R,2,1,4",

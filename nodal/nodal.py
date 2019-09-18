@@ -45,18 +45,18 @@ def find_ground_node(degrees):
     return ground
 
 
-def check_input_component(component):
-    s = len(component)
-    if s == 0 or component[0][0] == "#":
+def check_input_component(data):
+    s = len(data)
+    if s == 0 or data[0][0] == "#":
         return
 
-    key = component[NCOL]
+    key = data[NCOL]
     assert type(key) == str
 
     if s < 5:
         raise ValueError(f"Missing arguments for component {key}")
 
-    ctype = component[TCOL]
+    ctype = data[TCOL]
 
     if ctype not in NODE_TYPES:
         raise ValueError(f"Unknown type {ctype} for component {key}")
@@ -64,8 +64,34 @@ def check_input_component(component):
     n = NODE_ARGS_NUMBER[ctype]
     if s != n:
         raise ValueError(
-            f"Wrong number of arguments for component {key}: " f"expected {n}, got {s}"
+            f"Wrong number of arguments for component {key}: expected {n}, got {s}"
         )
+
+    try:
+        float(data[VCOL])
+    except ValueError:
+        raise ValueError(
+            "Bad input: expected a number for component value "
+            "of {}, got {} instead".format(data[NCOL], data[VCOL])
+        )
+
+
+def build_component(data):
+    new_component = [None] * 8
+
+    new_component[NCOL] = data[NCOL]
+    new_component[TCOL] = data[TCOL]
+    new_component[VCOL] = float(data[VCOL])
+    new_component[ACOL] = data[ACOL]
+    new_component[BCOL] = data[BCOL]
+
+    if data[TCOL] in NODE_TYPES_DEP:
+        new_component[CCOL] = data[CCOL]
+        new_component[DCOL] = data[DCOL]
+        if data[TCOL] in NODE_TYPES_CC:
+            new_component[PCOL] = data[PCOL]
+
+    return new_component
 
 
 def read_netlist(netlist_path):
@@ -93,51 +119,27 @@ def read_netlist(netlist_path):
         nums["opamps"] = 0
         degrees = {}
         anomnum = {}
-        for component in netlist:
+        for data in netlist:
 
             # Check for proper input
-            check_input_component(component)
+            check_input_component(data)
 
             # Skip comments and empty lines
-            if component == [] or component[0][0] == "#":
+            if data == [] or data[0][0] == "#":
                 continue
 
-            # Initialize the new component
-            key = component[NCOL]
-            ctype = component[TCOL]
+            # Build the new component
+            key = data[NCOL]
             component_keys.append(key)
-            components[key] = [None] * 8
-
-            newcomp = components[key]
-            newcomp[NCOL] = key
-            newcomp[TCOL] = ctype
-
-            # Assign value
-            try:
-                newcomp[VCOL] = float(component[VCOL])
-            except ValueError:
-                raise ValueError(
-                    "Bad input: expected a number for component value "
-                    "of {}, got {} instead".format(component[NCOL], component[VCOL])
-                )
-
-            # Assign positive and negative leads
-            newcomp[ACOL] = component[ACOL]
-            newcomp[BCOL] = component[BCOL]
-
-            # Assign type
-            if component[TCOL] in NODE_TYPES_DEP:
-                newcomp[CCOL] = component[CCOL]
-                newcomp[DCOL] = component[DCOL]
-                if component[TCOL] in NODE_TYPES_CC:
-                    newcomp[PCOL] = component[PCOL]
+            newcomp = build_component(data)
+            components[key] = newcomp
 
             # Update the different component counts
             nums["components"] += 1
-            curnodes = component[ACOL : BCOL + 1]
+            curnodes = [data[ACOL], data[BCOL]]
             newnodes = [key for key in curnodes if key not in degrees]
-            if component[TCOL] in NODE_TYPES_ANOM:
-                anomnum[component[NCOL]] = nums["anomalies"]
+            if data[TCOL] in NODE_TYPES_ANOM:
+                anomnum[data[NCOL]] = nums["anomalies"]
                 nums["anomalies"] += 1
             for node in newnodes:
                 degrees[node] = 0
