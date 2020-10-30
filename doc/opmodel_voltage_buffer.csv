@@ -1,0 +1,6 @@
+# OPMODEL example: voltage buffer
+# output e(2) will be equal to input set by v1
+# expected output for ideal circuit is e(2) = 1
+
+q1,OPMODEL,0,2,g,3,2
+v1,E,1,3,g
