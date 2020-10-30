@@ -115,9 +115,13 @@ def append_opmodel(data, netlist):
     feedback_resistor = [f"{name}_rf", "R", rf, neg, out]
     vcvs = [f"{name}_vcvs", "VCVS", gain, phony, ground, pos, neg]
 
+    # rf is set to 0 when there is direct feedback without a resistor
+    if rf != "0":
+        netlist.append(feedback_resistor)
+    else:
+        assert neg == out
     netlist.append(input_resistor)
     netlist.append(output_resistor)
-    netlist.append(feedback_resistor)
     netlist.append(vcvs)
 
 
