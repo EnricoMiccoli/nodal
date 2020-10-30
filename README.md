@@ -48,7 +48,7 @@ e(3)    = -2.0
 
 ![Circuit diagram](doc/1.6.1.png)
 
-_Example circuit from: [Esercizi da temi d'esame di Elettrotecnica](http://home.deib.polimi.it/damore/download/temiDEsame.pdf)_
+_Example circuit from: [Esercizi da temi d'esame di Elettrotecnica](https://damore.faculty.polimi.it/download/temiDEsame.pdf)_
 
 Input file `1.6.1.csv`:
 ```
