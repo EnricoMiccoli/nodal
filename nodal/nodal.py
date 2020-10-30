@@ -19,13 +19,15 @@ CCOL = 5  # first node of controlling variable
 DCOL = 6  # second node of controlling variable
 PCOL = 7  # name of the driving component
 
+# Component types
 NODE_TYPES_CC = ["CCCS", "CCVS"]
 NODE_TYPES_DEP = ["VCVS", "VCCS"] + NODE_TYPES_CC
 NODE_TYPES_ANOM = ["E"] + NODE_TYPES_DEP
-NODE_TYPES = ["A", "R"] + NODE_TYPES_ANOM + ["OPAMP"]
+NODE_TYPES = ["A", "R"] + NODE_TYPES_ANOM + ["OPAMP", "OPMODEL"]
 
 NODE_ARGS_NUMBER = {
     "OPAMP": 7,
+    "OPMODEL": 7,
     "R": 5,
     "A": 5,
     "E": 5,
@@ -34,6 +36,11 @@ NODE_ARGS_NUMBER = {
     "CCCS": 8,
     "CCVS": 8,
 }
+
+# OPAMP modeling
+OPMODEL_RI = 1e7  # (ohm)
+OPMODEL_RO = 10  # (ohm)
+OPMODEL_GAIN = 1e5  # (adimensional)
 
 
 def find_ground_node(degrees):
@@ -76,6 +83,44 @@ def check_input_component(data):
         )
 
 
+def append_opmodel(data, netlist):
+    # OPMODEL component specification:
+    # [
+    #   name,
+    #   "OPMODEL",
+    #   value of feedback resistor,
+    #   output terminal,
+    #   ground terminal
+    #   non-inverting terminal,
+    #   inverting terminal,
+    # ]
+
+    name = data[NCOL]
+
+    # Values
+    ri = str(OPMODEL_RI)
+    ro = str(OPMODEL_RO)
+    rf = data[VCOL]
+    gain = str(OPMODEL_GAIN)
+
+    # Nodes
+    out = data[ACOL]
+    ground = data[BCOL]
+    pos = data[CCOL]
+    neg = data[DCOL]
+    phony = f"{name}_internal_node"
+
+    input_resistor = [f"{name}_ri", "R", ri, pos, neg]
+    output_resistor = [f"{name}_ro", "R", ro, phony, out]
+    feedback_resistor = [f"{name}_rf", "R", rf, neg, out]
+    vcvs = [f"{name}_vcvs", "VCVS", gain, phony, ground, pos, neg]
+
+    netlist.append(input_resistor)
+    netlist.append(output_resistor)
+    netlist.append(feedback_resistor)
+    netlist.append(vcvs)
+
+
 def read_netlist(netlist_path):
     components = {}
     # We will need to iterate over components twice
@@ -101,13 +146,22 @@ def read_netlist(netlist_path):
         nums["opamps"] = 0
         degrees = {}
         anomnum = {}
+        netlist = list(netlist)  # TODO something different
         for data in netlist:
 
             # Skip comments and empty lines
             if data == [] or data[0][0] == "#":
                 continue
 
-            # Build the new component
+            # If the current component is an OPMODEL,
+            # replace it with an equivalent circuit.
+            # The new components will be appended to the netlist
+            # TODO: is it a good practice to expand an iterator while looping?
+            if data[TCOL] == "OPMODEL":
+                append_opmodel(data, netlist)
+                continue
+
+            # Otherwise, just build the component
             try:
                 newcomp = Component(data)
             except ValueError:
