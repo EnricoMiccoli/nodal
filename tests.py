@@ -48,6 +48,31 @@ class IntegratedTest(unittest.TestCase):
         expected = "Ground node: 1\n" "e(2) \t= -1.0\n" "e(3) \t= -2.0\n"
         self.assert_print(path, expected)
 
+    def test_doc_opmodel_amplifier(self):
+        path = "doc/opmodel_amplifier.csv"
+        expected = (
+            "Ground node: g\n"
+            "e(1) \t= 0.9998800143982738\n"
+            "e(2) \t= 1.9997600287845494\n"
+            "e(3) \t= 1.0000000000000002\n"
+            "e(q1_internal_node) \t= 11.998560172647306\n"
+            "i(q1_vcvs) \t= 0.9998800143862757\n"
+            "i(v1) \t= 1.1998560172647305e-11\n"
+        )
+        self.assert_print(path, expected)
+
+    def test_doc_opmodel_voltage_buffer(self):
+        path = "doc/opmodel_voltage_buffer.csv"
+        expected = (
+            "Ground node: g\n"
+            "e(2) \t= 0.999990000099999\n"
+            "e(3) \t= 0.9999999999999999\n"
+            "e(q1_internal_node) \t= 0.9999900000899992\n"
+            "i(q1_vcvs) \t= -9.999917560676863e-13\n"
+            "i(v1) \t= 9.999900000899992e-13\n"
+        )
+        self.assert_print(path, expected)
+
 
 class InputTesters(unittest.TestCase):
     def test_check_input_component(self):
@@ -57,10 +82,12 @@ class InputTesters(unittest.TestCase):
             "v1,VCCS,5,1,2",
             "v1,CCVS,5,1,2",
             "v1,CCCS,5,1,2",
+            "q1,OPMODEL,0,2,g,3",
             "v1,VCVS,5,1,2,1,1,1",  # too many arguments
             "r1,R,5,1,2,3",
             "r1,A,5,1,2,3",
             "r1,E,5,1,2,3",
+            "q1,OPMODEL,1,2,g,3,1,5",
             "v1,VoltageSource,5,1,2",  # unknown type
             "r1,R,one_ohm,1,2",  # not a float
         ]
@@ -79,6 +106,8 @@ class InputTesters(unittest.TestCase):
             "Ro,R,1e1,1,2",
             "vs,E,10,3,g",
             "d1,VCVS,1e5,2,g,3,1",
+            "q1,OPMODEL,1,2,g,3,1",
+            "q1,OPMODEL,0,2,g,3,2",
         ]
 
         for bad in bad_inputs:
