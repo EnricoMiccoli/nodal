@@ -77,7 +77,6 @@ def check_input_component(data):
 
 
 def read_netlist(netlist_path):
-
     try:
         infile = open(netlist_path, "r")
     except FileNotFoundError:
@@ -85,58 +84,10 @@ def read_netlist(netlist_path):
         raise
     infile.close()
 
-    # Iterate over components in the netlist file
     with open(netlist_path, "r") as infile:
         netlist = csv.reader(infile, skipinitialspace=True)
         state = State()
-        for data in netlist:
-
-            # Skip comments and empty lines
-            if data == [] or data[0][0] == "#":
-                continue
-
-            # Build the new component
-            try:
-                newcomp = Component(data)
-            except ValueError:
-                raise
-            key = data[NCOL]
-            # We will need to iterate over components twice
-            # in the same order, so we save keys
-            # TODO make this more memory efficient
-            state.component_keys.append(key)
-            state.components[key] = newcomp
-
-            # Update the different component counts
-            state.nums["components"] += 1
-            curnodes = [data[ACOL], data[BCOL]]
-            newnodes = [key for key in curnodes if key not in state.degrees]
-            if data[TCOL] in NODE_TYPES_ANOM:
-                state.anomnum[data[NCOL]] = state.nums["anomalies"]
-                state.nums["anomalies"] += 1
-            for node in newnodes:
-                state.degrees[node] = 0
-            for node in curnodes:
-                state.degrees[node] += 1
-
-    # Set ground node
-    state.ground = find_ground_node(state.degrees)
-
-    # Update node counts
-    i = 0
-    state.nodenum = {}
-    for node in [k for k in state.degrees.keys() if k != state.ground]:
-        state.nodenum[node] = i
-        i += 1
-    assert len(state.nodenum) == len(state.degrees) - 1
-
-    # Update equations count
-    logging.debug("nodenum={}".format(state.nodenum))
-    state.nums["kcl"] = len(state.nodenum)
-    state.nums["be"] = state.nums["anomalies"]
-    logging.debug("nums={}".format(state.nums))
-    logging.debug("anomnum={}".format(state.anomnum))
-    # From now on nums shall become immutable
+        state.process_netlist(netlist)
 
     return state
 
@@ -434,6 +385,56 @@ class State:
         self.component_keys = []
         self.ground = None
         self.nodenum = {}
+
+    def process_netlist(self, netlist):
+        # Iterate over components in the netlist file
+        for data in netlist:
+            # Skip comments and empty lines
+            if data == [] or data[0][0] == "#":
+                continue
+
+            # Build the new component
+            try:
+                newcomp = Component(data)
+            except ValueError:
+                raise
+            key = data[NCOL]
+            # We will need to iterate over components twice
+            # in the same order, so we save keys
+            # TODO make this more memory efficient
+            self.component_keys.append(key)
+            self.components[key] = newcomp
+
+            # Update the different component counts
+            self.nums["components"] += 1
+            curnodes = [data[ACOL], data[BCOL]]
+            newnodes = [key for key in curnodes if key not in self.degrees]
+            if data[TCOL] in NODE_TYPES_ANOM:
+                self.anomnum[data[NCOL]] = self.nums["anomalies"]
+                self.nums["anomalies"] += 1
+            for node in newnodes:
+                self.degrees[node] = 0
+            for node in curnodes:
+                self.degrees[node] += 1
+
+        # Set ground node
+        self.ground = find_ground_node(self.degrees)
+
+        # Update node counts
+        i = 0
+        self.nodenum = {}
+        for node in [k for k in self.degrees.keys() if k != self.ground]:
+            self.nodenum[node] = i
+            i += 1
+        assert len(self.nodenum) == len(self.degrees) - 1
+
+        # Update equations count
+        logging.debug("nodenum={}".format(self.nodenum))
+        self.nums["kcl"] = len(self.nodenum)
+        self.nums["be"] = self.nums["anomalies"]
+        logging.debug("nums={}".format(self.nums))
+        logging.debug("anomnum={}".format(self.anomnum))
+        # From now on nums shall become immutable
 
 
 class Solution:
