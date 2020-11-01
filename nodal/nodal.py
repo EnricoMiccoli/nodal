@@ -83,7 +83,7 @@ def check_input_component(data):
         )
 
 
-def append_opmodel(data, netlist):
+def build_opmodel(data):
     # OPMODEL component specification:
     # [
     #   name,
@@ -115,14 +115,15 @@ def append_opmodel(data, netlist):
     feedback_resistor = [f"{name}_rf", "R", rf, neg, out]
     vcvs = [f"{name}_vcvs", "VCVS", gain, phony, ground, pos, neg]
 
+    result = [input_resistor, output_resistor, vcvs]
+
     # rf is set to 0 when there is direct feedback without a resistor
     if rf != "0":
-        netlist.append(feedback_resistor)
+        result.append(feedback_resistor)
     else:
         assert neg == out
-    netlist.append(input_resistor)
-    netlist.append(output_resistor)
-    netlist.append(vcvs)
+
+    return result
 
 
 def read_netlist(netlist_path):
@@ -435,36 +436,51 @@ class State:
         self.ground = None
         self.nodenum = {}
 
+        self.opmodel_equivalents = []
+
+    def process_component(self, data):
+        # Skip comments and empty lines
+        if data == [] or data[0][0] == "#":
+            return
+
+        # If the current component is an OPMODEL,
+        # replace it with an equivalent circuit.
+        if data[TCOL] == "OPMODEL":
+            eq = build_opmodel(data)
+            self.opmodel_equivalents.extend(eq)
+            return
+
+        # Otherwise, just build the component
+        try:
+            newcomp = Component(data)
+        except ValueError:
+            raise
+        key = data[NCOL]
+        # We will need to iterate over components twice
+        # in the same order, so we save keys
+        # TODO make this more memory efficient
+        self.component_keys.append(key)
+        self.components[key] = newcomp
+
+        # Update the different component counts
+        self.nums["components"] += 1
+        curnodes = [data[ACOL], data[BCOL]]
+        newnodes = [key for key in curnodes if key not in self.degrees]
+        if data[TCOL] in NODE_TYPES_ANOM:
+            self.anomnum[data[NCOL]] = self.nums["anomalies"]
+            self.nums["anomalies"] += 1
+        for node in newnodes:
+            self.degrees[node] = 0
+        for node in curnodes:
+            self.degrees[node] += 1
+
     def process_netlist(self, netlist):
         # Iterate over components in the netlist file
         for data in netlist:
-            # Skip comments and empty lines
-            if data == [] or data[0][0] == "#":
-                continue
+            self.process_component(data)
 
-            # Build the new component
-            try:
-                newcomp = Component(data)
-            except ValueError:
-                raise
-            key = data[NCOL]
-            # We will need to iterate over components twice
-            # in the same order, so we save keys
-            # TODO make this more memory efficient
-            self.component_keys.append(key)
-            self.components[key] = newcomp
-
-            # Update the different component counts
-            self.nums["components"] += 1
-            curnodes = [data[ACOL], data[BCOL]]
-            newnodes = [key for key in curnodes if key not in self.degrees]
-            if data[TCOL] in NODE_TYPES_ANOM:
-                self.anomnum[data[NCOL]] = self.nums["anomalies"]
-                self.nums["anomalies"] += 1
-            for node in newnodes:
-                self.degrees[node] = 0
-            for node in curnodes:
-                self.degrees[node] += 1
+        for data in self.opmodel_equivalents:
+            self.process_component(data)
 
         # Set ground node
         self.ground = find_ground_node(self.degrees)
