@@ -126,12 +126,6 @@ def append_opmodel(data, netlist):
 
 
 def read_netlist(netlist_path):
-    components = {}
-    # We will need to iterate over components twice
-    # in the same order, so we save keys
-    # TODO make this more memory efficient
-    component_keys = []
-
     try:
         infile = open(netlist_path, "r")
     except FileNotFoundError:
@@ -139,79 +133,22 @@ def read_netlist(netlist_path):
         raise
     infile.close()
 
-    # Iterate over components in the netlist file
     with open(netlist_path, "r") as infile:
         netlist = csv.reader(infile, skipinitialspace=True)
-        nums = {}
-        nums["components"] = 0
-        nums["anomalies"] = 0
-        nums["be"] = 0  # number of branch equations
-        nums["kcl"] = 0  # number of non-ground nodes
-        nums["opamps"] = 0
-        degrees = {}
-        anomnum = {}
-        netlist = list(netlist)  # TODO something different
-        for data in netlist:
+        state = State()
+        state.process_netlist(netlist)
 
-            # Skip comments and empty lines
-            if data == [] or data[0][0] == "#":
-                continue
-
-            # If the current component is an OPMODEL,
-            # replace it with an equivalent circuit.
-            # The new components will be appended to the netlist
-            # TODO: is it a good practice to expand an iterator while looping?
-            if data[TCOL] == "OPMODEL":
-                append_opmodel(data, netlist)
-                continue
-
-            # Otherwise, just build the component
-            try:
-                newcomp = Component(data)
-            except ValueError:
-                raise
-            key = data[NCOL]
-            component_keys.append(key)
-            components[key] = newcomp
-
-            # Update the different component counts
-            nums["components"] += 1
-            curnodes = [data[ACOL], data[BCOL]]
-            newnodes = [key for key in curnodes if key not in degrees]
-            if data[TCOL] in NODE_TYPES_ANOM:
-                anomnum[data[NCOL]] = nums["anomalies"]
-                nums["anomalies"] += 1
-            for node in newnodes:
-                degrees[node] = 0
-            for node in curnodes:
-                degrees[node] += 1
-
-    # Set ground node
-    ground = find_ground_node(degrees)
-
-    # Update node counts
-    i = 0
-    nodenum = {}
-    for node in [k for k in degrees.keys() if k != ground]:
-        nodenum[node] = i
-        i += 1
-    assert len(nodenum) == len(degrees) - 1
-
-    # Update equations count
-    logging.debug("nodenum={}".format(nodenum))
-    nums["kcl"] = len(nodenum)
-    nums["be"] = nums["anomalies"]
-    logging.debug("nums={}".format(nums))
-    logging.debug("anomnum={}".format(anomnum))
-    # From now on nums shall become immutable
-
-    state = [nums, degrees, anomnum, components, component_keys, ground, nodenum]
-    # TODO these variables should become attributes of an object
     return state
 
 
 def build_coefficients(state, sparse):
-    [nums, _, anomnum, components, component_keys, ground, nodenum] = state
+    nums = state.nums
+    anomnum = state.anomnum
+    components = state.components
+    component_keys = state.component_keys
+    ground = state.ground
+    nodenum = state.nodenum
+
     n = nums["kcl"] + nums["be"]  # number of unknowns
     if sparse:
         G = spsp.dok_matrix((n, n), dtype=np.float64)
@@ -488,14 +425,75 @@ class Netlist:
         self.state = read_netlist(path)
 
 
+class State:
+    def __init__(self):
+        self.nums = {"components": 0, "anomalies": 0, "be": 0, "kcl": 0, "opamps": 0}
+        self.degrees = {}
+        self.anomnum = {}
+        self.components = {}
+        self.component_keys = []
+        self.ground = None
+        self.nodenum = {}
+
+    def process_netlist(self, netlist):
+        # Iterate over components in the netlist file
+        for data in netlist:
+            # Skip comments and empty lines
+            if data == [] or data[0][0] == "#":
+                continue
+
+            # Build the new component
+            try:
+                newcomp = Component(data)
+            except ValueError:
+                raise
+            key = data[NCOL]
+            # We will need to iterate over components twice
+            # in the same order, so we save keys
+            # TODO make this more memory efficient
+            self.component_keys.append(key)
+            self.components[key] = newcomp
+
+            # Update the different component counts
+            self.nums["components"] += 1
+            curnodes = [data[ACOL], data[BCOL]]
+            newnodes = [key for key in curnodes if key not in self.degrees]
+            if data[TCOL] in NODE_TYPES_ANOM:
+                self.anomnum[data[NCOL]] = self.nums["anomalies"]
+                self.nums["anomalies"] += 1
+            for node in newnodes:
+                self.degrees[node] = 0
+            for node in curnodes:
+                self.degrees[node] += 1
+
+        # Set ground node
+        self.ground = find_ground_node(self.degrees)
+
+        # Update node counts
+        i = 0
+        self.nodenum = {}
+        for node in [k for k in self.degrees.keys() if k != self.ground]:
+            self.nodenum[node] = i
+            i += 1
+        assert len(self.nodenum) == len(self.degrees) - 1
+
+        # Update equations count
+        logging.debug("nodenum={}".format(self.nodenum))
+        self.nums["kcl"] = len(self.nodenum)
+        self.nums["be"] = self.nums["anomalies"]
+        logging.debug("nums={}".format(self.nums))
+        logging.debug("anomnum={}".format(self.anomnum))
+        # From now on nums shall become immutable
+
+
 class Solution:
     def __init__(self, result, state, currents):
         self.result = result
-        self.nodenum = state[6]
-        self.nums = state[0]
+        self.nodenum = state.nodenum
+        self.nums = state.nums
         self.currents = currents
-        self.ground = state[5]
-        self.anomnum = state[2]
+        self.ground = state.ground
+        self.anomnum = state.anomnum
 
     def __str__(self):
         output = "Ground node: {}".format(self.ground)
