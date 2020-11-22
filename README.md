@@ -4,7 +4,7 @@ Nodal.py is a simple electrical circuit simulator that uses nodal analysis to so
 ## Installation
 To get the stable release [download it](https://github.com/EnricoMiccoli/nodal/releases/latest) and run
 ```
-$ pip install nodal-1.1.0.whl
+$ pip install nodal-1.2.0.whl
 ```
 
 To try out the latest developments use [`flit`](https://github.com/takluyver/flit) instead:

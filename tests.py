@@ -53,10 +53,10 @@ class IntegratedTest(unittest.TestCase):
         expected = (
             "Ground node: g\n"
             "e(1) \t= 0.9998800143982738\n"
-            "e(2) \t= 1.9997600287845494\n"
+            "e(2) \t= 1.9997600287845492\n"
             "e(3) \t= 1.0000000000000002\n"
             "e(q1_internal_node) \t= 11.998560172647306\n"
-            "i(q1_vcvs) \t= 0.9998800143862757\n"
+            "i(q1_vcvs) \t= 0.9998800143862756\n"
             "i(v1) \t= 1.1998560172647305e-11\n"
         )
         self.assert_print(path, expected)
