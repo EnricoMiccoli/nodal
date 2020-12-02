@@ -6,6 +6,10 @@ import unittest.mock
 import nodal as n
 
 
+def check_input(data):
+    n.Component.check_input(None, data)
+
+
 class IntegratedTest(unittest.TestCase):
     @unittest.mock.patch("sys.stdout", new_callable=io.StringIO)
     def assert_print(self, path, expected, mock_stdout):
@@ -112,27 +116,27 @@ class InputTesters(unittest.TestCase):
 
         for bad in bad_inputs:
             try:
-                n.check_input_component(bad.split(","))
+                check_input(bad.split(","))
             except ValueError:
                 continue
             assert False
 
         for good in good_inputs:
             try:
-                n.check_input_component(good.split(","))
+                check_input(good.split(","))
             except ValueError:
                 assert False
 
     def test_check_input_component_empty_line(self):
         try:
-            n.check_input_component([])
+            check_input([])
         except ValueError:
             assert False
 
     def test_check_input_component_comment(self):
         good = "# This is a comment"
         try:
-            n.check_input_component(good)
+            check_input(good)
         except ValueError:
             assert False
 

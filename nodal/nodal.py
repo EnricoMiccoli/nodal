@@ -52,37 +52,6 @@ def find_ground_node(degrees):
     return ground
 
 
-def check_input_component(data):
-    s = len(data)
-    if s == 0 or data[0][0] == "#":
-        return
-
-    key = data[NCOL]
-    assert type(key) == str
-
-    if s < 5:
-        raise ValueError(f"Missing arguments for component {key}")
-
-    ctype = data[TCOL]
-
-    if ctype not in NODE_TYPES:
-        raise ValueError(f"Unknown type {ctype} for component {key}")
-
-    n = NODE_ARGS_NUMBER[ctype]
-    if s != n:
-        raise ValueError(
-            f"Wrong number of arguments for component {key}: expected {n}, got {s}"
-        )
-
-    try:
-        float(data[VCOL])
-    except ValueError:
-        raise ValueError(
-            "Bad input: expected a number for component value "
-            "of {}, got {} instead".format(data[NCOL], data[VCOL])
-        )
-
-
 def build_opmodel(data):
     # OPMODEL component specification:
     # [
@@ -148,7 +117,7 @@ def solve_sparse_system(G, A):
 
 class Component:
     def __init__(self, data):
-        check_input_component(data)
+        self.check_input(data)
 
         self.name = data[NCOL]
         self.type = data[TCOL]
@@ -166,6 +135,36 @@ class Component:
         else:
             self.pos_control = None
             self.neg_control = None
+
+    def check_input(self, data):
+        s = len(data)
+        if s == 0 or data[0][0] == "#":
+            return
+
+        key = data[NCOL]
+        assert type(key) == str
+
+        if s < 5:
+            raise ValueError(f"Missing arguments for component {key}")
+
+        ctype = data[TCOL]
+
+        if ctype not in NODE_TYPES:
+            raise ValueError(f"Unknown type {ctype} for component {key}")
+
+        n = NODE_ARGS_NUMBER[ctype]
+        if s != n:
+            raise ValueError(
+                f"Wrong number of arguments for component {key}: expected {n}, got {s}"
+            )
+
+        try:
+            float(data[VCOL])
+        except ValueError:
+            raise ValueError(
+                "Bad input: expected a number for component value "
+                "of {}, got {} instead".format(data[NCOL], data[VCOL])
+            )
 
 
 class State:
