@@ -167,8 +167,8 @@ class Component:
             )
 
 
-class State:
-    def __init__(self, netlist_reader=None):
+class Netlist:
+    def __init__(self, path):
         self.nums = {"components": 0, "anomalies": 0, "be": 0, "kcl": 0, "opamps": 0}
         self.degrees = {}
         self.anomnum = {}
@@ -176,38 +176,8 @@ class State:
         self.component_keys = []
         self.ground = None
         self.nodenum = {}
-
         self.opmodel_equivalents = []
-
-        if netlist_reader is not None:
-            self.process_netlist(netlist_reader)
-
-    def process_netlist(self, netlist_reader):
-        netlist = netlist_reader
-        # Iterate over components in the netlist file
-        for data in netlist:
-            self.process_component(data)
-
-        for data in self.opmodel_equivalents:
-            self.process_component(data)
-
-        # Set ground node
-        self.ground = find_ground_node(self.degrees)
-
-        # Update node counts
-        i = 0
-        self.nodenum = {}
-        for node in [k for k in self.degrees.keys() if k != self.ground]:
-            self.nodenum[node] = i
-            i += 1
-        assert len(self.nodenum) == len(self.degrees) - 1
-
-        # Update equations count
-        logging.debug("nodenum={}".format(self.nodenum))
-        self.nums["kcl"] = len(self.nodenum)
-        self.nums["be"] = self.nums["anomalies"]
-        logging.debug("nums={}".format(self.nums))
-        logging.debug("anomnum={}".format(self.anomnum))
+        self.read_netlist(path)
 
     def process_component(self, data):
         # Skip comments and empty lines
@@ -245,11 +215,6 @@ class State:
         for node in curnodes:
             self.degrees[node] += 1
 
-
-class Netlist:
-    def __init__(self, path):
-        self.state = self.read_netlist(path)
-
     def read_netlist(self, path):
         try:
             infile = open(path, "r")
@@ -259,17 +224,39 @@ class Netlist:
         infile.close()
 
         with open(path, "r") as infile:
-            netlist_reader = csv.reader(infile, skipinitialspace=True)
-            state = State(netlist_reader)
+            reader = csv.reader(infile, skipinitialspace=True)
 
-        return state
+            # Iterate over components in the netlist file
+            for data in reader:
+                self.process_component(data)
+
+            for data in self.opmodel_equivalents:
+                self.process_component(data)
+
+            # Set ground node
+            self.ground = find_ground_node(self.degrees)
+
+            # Update node counts
+            i = 0
+            self.nodenum = {}
+            for node in [k for k in self.degrees.keys() if k != self.ground]:
+                self.nodenum[node] = i
+                i += 1
+            assert len(self.nodenum) == len(self.degrees) - 1
+
+            # Update equations count
+            logging.debug("nodenum={}".format(self.nodenum))
+            self.nums["kcl"] = len(self.nodenum)
+            self.nums["be"] = self.nums["anomalies"]
+            logging.debug("nums={}".format(self.nums))
+            logging.debug("anomnum={}".format(self.anomnum))
 
 
 class Circuit:
     def __init__(self, netlist, sparse=False):
         if not isinstance(netlist, Netlist):
             raise TypeError("Input isn't a netlist")
-        self.state = netlist.state
+        self.netlist = netlist
         self.sparse = sparse
         self.G, self.A, self.currents = self.build_model()
 
@@ -278,18 +265,17 @@ class Circuit:
             result = solve_sparse_system(self.G, self.A)
         else:
             result = solve_system(self.G, self.A)
-        solution = Solution(result, self.state, self.currents)
+        solution = Solution(result, self.netlist, self.currents)
         return solution
 
     def build_model(self):
-        state = self.state
         sparse = self.sparse
-        nums = state.nums
-        anomnum = state.anomnum
-        components = state.components
-        component_keys = state.component_keys
-        ground = state.ground
-        nodenum = state.nodenum
+        nums = self.netlist.nums
+        anomnum = self.netlist.anomnum
+        components = self.netlist.components
+        component_keys = self.netlist.component_keys
+        ground = self.netlist.ground
+        nodenum = self.netlist.nodenum
 
         n = nums["kcl"] + nums["be"]  # number of unknowns
         if sparse:
@@ -523,13 +509,13 @@ class Circuit:
 
 
 class Solution:
-    def __init__(self, result, state, currents):
+    def __init__(self, result, netlist, currents):
         self.result = result
-        self.nodenum = state.nodenum
-        self.nums = state.nums
+        self.nodenum = netlist.nodenum
+        self.nums = netlist.nums
         self.currents = currents
-        self.ground = state.ground
-        self.anomnum = state.anomnum
+        self.ground = netlist.ground
+        self.anomnum = netlist.anomnum
 
     def __str__(self):
         output = "Ground node: {}".format(self.ground)
