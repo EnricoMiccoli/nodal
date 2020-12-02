@@ -126,259 +126,6 @@ def build_opmodel(data):
     return result
 
 
-def read_netlist(netlist_path):
-    try:
-        infile = open(netlist_path, "r")
-    except FileNotFoundError:
-        logging.error(f"File '{netlist_path}' not found.")
-        raise
-    infile.close()
-
-    with open(netlist_path, "r") as infile:
-        netlist = csv.reader(infile, skipinitialspace=True)
-        state = State()
-        state.process_netlist(netlist)
-
-    return state
-
-
-def build_coefficients(state, sparse):
-    nums = state.nums
-    anomnum = state.anomnum
-    components = state.components
-    component_keys = state.component_keys
-    ground = state.ground
-    nodenum = state.nodenum
-
-    n = nums["kcl"] + nums["be"]  # number of unknowns
-    if sparse:
-        G = spsp.dok_matrix((n, n), dtype=np.float64)
-    else:
-        G = np.zeros(shape=(n, n))
-    A = np.zeros(n)
-    currents = []
-    for key in component_keys:  # preserve order of iteration
-        component = components[key]
-        anode = component.anode
-        bnode = component.bnode
-        if anode != ground:
-            i = nodenum[anode]
-            assert 0 <= i <= nums["kcl"]
-        if bnode != ground:
-            j = nodenum[bnode]
-            assert 0 <= j <= nums["kcl"]
-
-        if component.type == "R":
-            try:
-                conductance = 1 / component.value
-            except ZeroDivisionError:
-                raise ValueError("Model error: resistors can't have null resistance")
-            if anode != ground:
-                G[i, i] += conductance
-            if bnode != ground:
-                G[j, j] += conductance
-            if bnode != ground and anode != ground:
-                G[i, j] -= conductance
-                G[j, i] -= conductance
-
-        elif component.type == "A":
-            current = component.value
-            if anode != ground:
-                A[i] += current
-            if bnode != ground:
-                A[j] -= current
-
-        elif component.type == "E":
-            tension = component.value
-            k = anomnum[component.name]
-            i = nums["kcl"] + k
-            currents.append(component.name)
-            A[i] += tension
-            if anode != ground:
-                j = nodenum[anode]
-                assert G[i, j] == 0
-                G[i, j] = 1
-                G[j, i] = -1
-            if bnode != ground:
-                j = nodenum[bnode]
-                assert G[i, j] == 0
-                G[i, j] = -1
-                G[j, i] = 1
-
-        elif component.type == "VCVS":
-            currents.append(component.name)
-            r = component.value
-            k = anomnum[component.name]
-            i = nums["kcl"] + k
-            cnode = component.pos_control
-            dnode = component.neg_control
-            # we need to write this BE:
-            # ea - eb = r (ec - ed)
-            # ea - eb - r ec + r ed = 0
-            if anode != ground:
-                j = nodenum[anode]
-                assert G[i, j] == 0
-                G[i, j] = 1
-                G[j, i] = -1
-            if bnode != ground:
-                j = nodenum[bnode]
-                assert G[i, j] == 0
-                G[i, j] = -1
-                G[j, i] = 1
-            if cnode != ground:
-                j = nodenum[cnode]
-                G[i, j] += -r
-            if dnode != ground:
-                j = nodenum[dnode]
-                G[i, j] += r
-
-        elif component.type == "VCCS":
-            currents.append(component.name)
-            g = component.value
-            k = anomnum[component.name]
-            j = nums["kcl"] + k
-            if anode != ground:
-                i = nodenum[anode]
-                assert G[i, j] == 0
-                G[i, j] = -1
-            if bnode != ground:
-                i = nodenum[bnode]
-                assert G[i, j] == 0
-                G[i, j] = 1
-            # we write the branch equation:
-            # i_cccs = g (ec - ed)
-            # i_cccs - g ec + g ed = 0
-            i = j
-            G[i, i] = +1
-            cnode = component.pos_control
-            dnode = component.neg_control
-            if cnode != ground:
-                j = nodenum[cnode]
-                G[i, j] = -g
-            if dnode != ground:
-                j = nodenum[dnode]
-                G[i, j] = +g
-
-        elif component.type == "CCVS":
-            r = component.value
-            k = anomnum[component.name]
-            i = nums["kcl"] + k
-            currents.append(component.name)
-            cnode = component.pos_control
-            dnode = component.neg_control
-            try:
-                driver = components[component.driver]
-            except KeyError:
-                raise KeyError(f"Driving component {component.driver} not found")
-            assert cnode is not None
-            assert dnode is not None
-            assert driver is not None
-            assert (cnode == driver.anode and dnode == driver.bnode) or (
-                cnode == driver.bnode and dnode == driver.anode
-            )
-            if anode != ground:
-                j = nodenum[anode]
-                G[i, j] = 1
-                G[j, i] = -1
-            if bnode != ground:
-                j = nodenum[bnode]
-                G[i, j] = -1
-                G[j, i] = 1
-
-            # we write the branch equation:
-            # v_cccv = r * i_driver
-            # ea - eb - r * i_driver = 0
-            if driver.type == "R":
-                # i_driver = (ec - ed)/R_driver
-                if cnode != ground:
-                    j = nodenum[cnode]
-                    G[i, j] = r / driver.value
-                if dnode != ground:
-                    j = nodenum[dnode]
-                    G[i, j] = -r / driver.value
-            elif driver.type in NODE_TYPES_ANOM:
-                j = anomnum[driver.name]
-                if driver.anode == component.pos_control:
-                    assert driver.bnode == component.neg_control
-                    G[i, j] = -r
-                else:
-                    assert driver.anode == component.neg_control
-                    assert driver.bnode == component.pos_control
-                    G[i, j] = r
-            elif driver.type == "A":
-                A[i] = r * driver.value
-            else:
-                raise ValueError(f"Unknown component type: {driver.type}")
-
-        elif component.type == "CCCS":
-            currents.append(component.name)
-            g = component.value
-            k = anomnum[component.name]
-            j = nums["kcl"] + k
-            if anode != ground:
-                i = nodenum[anode]
-                assert G[i, j] == 0
-                G[i, j] = -1
-            if bnode != ground:
-                i = nodenum[bnode]
-                assert G[i, j] == 0
-                G[i, j] = 1
-            # we write the branch equation:
-            # i_cccs = g * i_driver
-            i = j
-            assert G[i, i] == 0
-            G[i, i] = 1
-            try:
-                driver = components[component.driver]
-            except KeyError:
-                raise KeyError(f"Driving component {component.driver} not found")
-            # case 1: i_driver is unknown
-            if driver.type == "R":
-                cnode = component.pos_control
-                dnode = component.neg_control
-                assert (cnode == driver.anode and dnode == driver.bnode) or (
-                    cnode == driver.bnode and dnode == driver.anode
-                )
-                assert cnode is not None
-                assert dnode is not None
-                if cnode != ground:
-                    j = nodenum[cnode]
-                    assert G[i, j] == 0
-                    G[i, j] = +g / driver.value
-                if dnode != ground:
-                    j = nodenum[dnode]
-                    assert G[i, j] == 0
-                    G[i, j] = -g / driver.value
-            elif driver.type in NODE_TYPES_ANOM:
-                j = anomnum[driver.name]
-                if driver.anode == component.pos_control:
-                    assert driver.bnode == component.neg_control
-                    G[i, j] = -g
-                else:
-                    assert driver.anode == component.neg_control
-                    assert driver.bnode == component.pos_control
-                    G[i, j] = g
-            # case 2: i_driver is known
-            elif driver.type == "A":
-                assert A[i] == 0
-                A[i] = g * driver.value
-            else:
-                raise ValueError(f"Unknown component type: {driver.type}")
-
-        elif component.type == "OPAMP":
-            raise NotImplementedError
-
-        else:
-            raise ValueError(f"Unknown component type: {driver.type}")
-
-    logging.debug("currents={}".format(currents))
-    logging.debug("G=\n{}".format(G))
-    logging.debug("A=\n{}".format(A))
-    if sparse:
-        G = G.tocsr()
-    return [G, A, currents]
-
-
 def solve_system(G, A):
     try:
         e = np.linalg.solve(G, A)
@@ -420,14 +167,8 @@ class Component:
             self.pos_control = None
             self.neg_control = None
 
-
-class Netlist:
-    def __init__(self, path):
-        self.state = read_netlist(path)
-
-
 class State:
-    def __init__(self):
+    def __init__(self, netlist_reader=None):
         self.nums = {"components": 0, "anomalies": 0, "be": 0, "kcl": 0, "opamps": 0}
         self.degrees = {}
         self.anomnum = {}
@@ -437,6 +178,36 @@ class State:
         self.nodenum = {}
 
         self.opmodel_equivalents = []
+
+        if netlist_reader is not None:
+            self.process_netlist(netlist_reader)
+
+    def process_netlist(self, netlist_reader):
+        netlist=netlist_reader
+        # Iterate over components in the netlist file
+        for data in netlist:
+            self.process_component(data)
+
+        for data in self.opmodel_equivalents:
+            self.process_component(data)
+
+        # Set ground node
+        self.ground = find_ground_node(self.degrees)
+
+        # Update node counts
+        i = 0
+        self.nodenum = {}
+        for node in [k for k in self.degrees.keys() if k != self.ground]:
+            self.nodenum[node] = i
+            i += 1
+        assert len(self.nodenum) == len(self.degrees) - 1
+
+        # Update equations count
+        logging.debug("nodenum={}".format(self.nodenum))
+        self.nums["kcl"] = len(self.nodenum)
+        self.nums["be"] = self.nums["anomalies"]
+        logging.debug("nums={}".format(self.nums))
+        logging.debug("anomnum={}".format(self.anomnum))
 
     def process_component(self, data):
         # Skip comments and empty lines
@@ -474,32 +245,278 @@ class State:
         for node in curnodes:
             self.degrees[node] += 1
 
-    def process_netlist(self, netlist):
-        # Iterate over components in the netlist file
-        for data in netlist:
-            self.process_component(data)
+class Netlist:
+    def __init__(self, path):
+        self.state = self.read_netlist(path)
 
-        for data in self.opmodel_equivalents:
-            self.process_component(data)
 
-        # Set ground node
-        self.ground = find_ground_node(self.degrees)
+    def read_netlist(self, path):
+        try:
+            infile = open(path, "r")
+        except FileNotFoundError:
+            logging.error(f"File '{path}' not found.")
+            raise
+        infile.close()
 
-        # Update node counts
-        i = 0
-        self.nodenum = {}
-        for node in [k for k in self.degrees.keys() if k != self.ground]:
-            self.nodenum[node] = i
-            i += 1
-        assert len(self.nodenum) == len(self.degrees) - 1
+        with open(path, "r") as infile:
+            netlist_reader = csv.reader(infile, skipinitialspace=True)
+            state = State(netlist_reader)
 
-        # Update equations count
-        logging.debug("nodenum={}".format(self.nodenum))
-        self.nums["kcl"] = len(self.nodenum)
-        self.nums["be"] = self.nums["anomalies"]
-        logging.debug("nums={}".format(self.nums))
-        logging.debug("anomnum={}".format(self.anomnum))
+        return state
 
+class Circuit:
+    def __init__(self, netlist, sparse=False):
+        if not isinstance(netlist, Netlist):
+            raise TypeError("Input isn't a netlist")
+        self.state = netlist.state
+        self.sparse = sparse
+        self.G, self.A, self.currents = self.build_model()
+
+    def solve(self):
+        if self.sparse:
+            result = solve_sparse_system(self.G, self.A)
+        else:
+            result = solve_system(self.G, self.A)
+        solution = Solution(result, self.state, self.currents)
+        return solution
+
+    def build_model(self):
+        state = self.state
+        sparse = self.sparse
+        nums = state.nums
+        anomnum = state.anomnum
+        components = state.components
+        component_keys = state.component_keys
+        ground = state.ground
+        nodenum = state.nodenum
+
+        n = nums["kcl"] + nums["be"]  # number of unknowns
+        if sparse:
+            G = spsp.dok_matrix((n, n), dtype=np.float64)
+        else:
+            G = np.zeros(shape=(n, n))
+        A = np.zeros(n)
+        currents = []
+        for key in component_keys:  # preserve order of iteration
+            component = components[key]
+            anode = component.anode
+            bnode = component.bnode
+            if anode != ground:
+                i = nodenum[anode]
+                assert 0 <= i <= nums["kcl"]
+            if bnode != ground:
+                j = nodenum[bnode]
+                assert 0 <= j <= nums["kcl"]
+
+            if component.type == "R":
+                try:
+                    conductance = 1 / component.value
+                except ZeroDivisionError:
+                    raise ValueError("Model error: resistors can't have null resistance")
+                if anode != ground:
+                    G[i, i] += conductance
+                if bnode != ground:
+                    G[j, j] += conductance
+                if bnode != ground and anode != ground:
+                    G[i, j] -= conductance
+                    G[j, i] -= conductance
+
+            elif component.type == "A":
+                current = component.value
+                if anode != ground:
+                    A[i] += current
+                if bnode != ground:
+                    A[j] -= current
+
+            elif component.type == "E":
+                tension = component.value
+                k = anomnum[component.name]
+                i = nums["kcl"] + k
+                currents.append(component.name)
+                A[i] += tension
+                if anode != ground:
+                    j = nodenum[anode]
+                    assert G[i, j] == 0
+                    G[i, j] = 1
+                    G[j, i] = -1
+                if bnode != ground:
+                    j = nodenum[bnode]
+                    assert G[i, j] == 0
+                    G[i, j] = -1
+                    G[j, i] = 1
+
+            elif component.type == "VCVS":
+                currents.append(component.name)
+                r = component.value
+                k = anomnum[component.name]
+                i = nums["kcl"] + k
+                cnode = component.pos_control
+                dnode = component.neg_control
+                # we need to write this BE:
+                # ea - eb = r (ec - ed)
+                # ea - eb - r ec + r ed = 0
+                if anode != ground:
+                    j = nodenum[anode]
+                    assert G[i, j] == 0
+                    G[i, j] = 1
+                    G[j, i] = -1
+                if bnode != ground:
+                    j = nodenum[bnode]
+                    assert G[i, j] == 0
+                    G[i, j] = -1
+                    G[j, i] = 1
+                if cnode != ground:
+                    j = nodenum[cnode]
+                    G[i, j] += -r
+                if dnode != ground:
+                    j = nodenum[dnode]
+                    G[i, j] += r
+
+            elif component.type == "VCCS":
+                currents.append(component.name)
+                g = component.value
+                k = anomnum[component.name]
+                j = nums["kcl"] + k
+                if anode != ground:
+                    i = nodenum[anode]
+                    assert G[i, j] == 0
+                    G[i, j] = -1
+                if bnode != ground:
+                    i = nodenum[bnode]
+                    assert G[i, j] == 0
+                    G[i, j] = 1
+                # we write the branch equation:
+                # i_cccs = g (ec - ed)
+                # i_cccs - g ec + g ed = 0
+                i = j
+                G[i, i] = +1
+                cnode = component.pos_control
+                dnode = component.neg_control
+                if cnode != ground:
+                    j = nodenum[cnode]
+                    G[i, j] = -g
+                if dnode != ground:
+                    j = nodenum[dnode]
+                    G[i, j] = +g
+
+            elif component.type == "CCVS":
+                r = component.value
+                k = anomnum[component.name]
+                i = nums["kcl"] + k
+                currents.append(component.name)
+                cnode = component.pos_control
+                dnode = component.neg_control
+                try:
+                    driver = components[component.driver]
+                except KeyError:
+                    raise KeyError(f"Driving component {component.driver} not found")
+                assert cnode is not None
+                assert dnode is not None
+                assert driver is not None
+                assert (cnode == driver.anode and dnode == driver.bnode) or (
+                    cnode == driver.bnode and dnode == driver.anode
+                )
+                if anode != ground:
+                    j = nodenum[anode]
+                    G[i, j] = 1
+                    G[j, i] = -1
+                if bnode != ground:
+                    j = nodenum[bnode]
+                    G[i, j] = -1
+                    G[j, i] = 1
+
+                # we write the branch equation:
+                # v_cccv = r * i_driver
+                # ea - eb - r * i_driver = 0
+                if driver.type == "R":
+                    # i_driver = (ec - ed)/R_driver
+                    if cnode != ground:
+                        j = nodenum[cnode]
+                        G[i, j] = r / driver.value
+                    if dnode != ground:
+                        j = nodenum[dnode]
+                        G[i, j] = -r / driver.value
+                elif driver.type in NODE_TYPES_ANOM:
+                    j = anomnum[driver.name]
+                    if driver.anode == component.pos_control:
+                        assert driver.bnode == component.neg_control
+                        G[i, j] = -r
+                    else:
+                        assert driver.anode == component.neg_control
+                        assert driver.bnode == component.pos_control
+                        G[i, j] = r
+                elif driver.type == "A":
+                    A[i] = r * driver.value
+                else:
+                    raise ValueError(f"Unknown component type: {driver.type}")
+
+            elif component.type == "CCCS":
+                currents.append(component.name)
+                g = component.value
+                k = anomnum[component.name]
+                j = nums["kcl"] + k
+                if anode != ground:
+                    i = nodenum[anode]
+                    assert G[i, j] == 0
+                    G[i, j] = -1
+                if bnode != ground:
+                    i = nodenum[bnode]
+                    assert G[i, j] == 0
+                    G[i, j] = 1
+                # we write the branch equation:
+                # i_cccs = g * i_driver
+                i = j
+                assert G[i, i] == 0
+                G[i, i] = 1
+                try:
+                    driver = components[component.driver]
+                except KeyError:
+                    raise KeyError(f"Driving component {component.driver} not found")
+                # case 1: i_driver is unknown
+                if driver.type == "R":
+                    cnode = component.pos_control
+                    dnode = component.neg_control
+                    assert (cnode == driver.anode and dnode == driver.bnode) or (
+                        cnode == driver.bnode and dnode == driver.anode
+                    )
+                    assert cnode is not None
+                    assert dnode is not None
+                    if cnode != ground:
+                        j = nodenum[cnode]
+                        assert G[i, j] == 0
+                        G[i, j] = +g / driver.value
+                    if dnode != ground:
+                        j = nodenum[dnode]
+                        assert G[i, j] == 0
+                        G[i, j] = -g / driver.value
+                elif driver.type in NODE_TYPES_ANOM:
+                    j = anomnum[driver.name]
+                    if driver.anode == component.pos_control:
+                        assert driver.bnode == component.neg_control
+                        G[i, j] = -g
+                    else:
+                        assert driver.anode == component.neg_control
+                        assert driver.bnode == component.pos_control
+                        G[i, j] = g
+                # case 2: i_driver is known
+                elif driver.type == "A":
+                    assert A[i] == 0
+                    A[i] = g * driver.value
+                else:
+                    raise ValueError(f"Unknown component type: {driver.type}")
+
+            elif component.type == "OPAMP":
+                raise NotImplementedError
+
+            else:
+                raise ValueError(f"Unknown component type: {driver.type}")
+
+        logging.debug("currents={}".format(currents))
+        logging.debug("G=\n{}".format(G))
+        logging.debug("A=\n{}".format(A))
+        if sparse:
+            G = G.tocsr()
+        return [G, A, currents]
 
 class Solution:
     def __init__(self, result, state, currents):
@@ -523,23 +540,3 @@ class Solution:
             current = self.result[self.nums["kcl"] + i]
             output += "\ni({}) \t= {}".format(name, current)
         return output
-
-
-class Circuit:
-    def __init__(self, netlist, sparse=False):
-        if not isinstance(netlist, Netlist):
-            raise TypeError("Input isn't a netlist")
-        self.state = netlist.state
-        self.sparse = sparse
-        model = build_coefficients(self.state, self.sparse)
-        self.G = model[0]
-        self.A = model[1]
-        self.currents = model[2]
-
-    def solve(self):
-        if self.sparse:
-            result = solve_sparse_system(self.G, self.A)
-        else:
-            result = solve_system(self.G, self.A)
-        solution = Solution(result, self.state, self.currents)
-        return solution
