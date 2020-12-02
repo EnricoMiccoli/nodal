@@ -167,6 +167,7 @@ class Component:
             self.pos_control = None
             self.neg_control = None
 
+
 class State:
     def __init__(self, netlist_reader=None):
         self.nums = {"components": 0, "anomalies": 0, "be": 0, "kcl": 0, "opamps": 0}
@@ -183,7 +184,7 @@ class State:
             self.process_netlist(netlist_reader)
 
     def process_netlist(self, netlist_reader):
-        netlist=netlist_reader
+        netlist = netlist_reader
         # Iterate over components in the netlist file
         for data in netlist:
             self.process_component(data)
@@ -245,10 +246,10 @@ class State:
         for node in curnodes:
             self.degrees[node] += 1
 
+
 class Netlist:
     def __init__(self, path):
         self.state = self.read_netlist(path)
-
 
     def read_netlist(self, path):
         try:
@@ -263,6 +264,7 @@ class Netlist:
             state = State(netlist_reader)
 
         return state
+
 
 class Circuit:
     def __init__(self, netlist, sparse=False):
@@ -312,7 +314,9 @@ class Circuit:
                 try:
                     conductance = 1 / component.value
                 except ZeroDivisionError:
-                    raise ValueError("Model error: resistors can't have null resistance")
+                    raise ValueError(
+                        "Model error: resistors can't have null resistance"
+                    )
                 if anode != ground:
                     G[i, i] += conductance
                 if bnode != ground:
@@ -517,6 +521,7 @@ class Circuit:
         if sparse:
             G = G.tocsr()
         return [G, A, currents]
+
 
 class Solution:
     def __init__(self, result, state, currents):
