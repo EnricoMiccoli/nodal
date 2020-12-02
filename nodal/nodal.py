@@ -130,7 +130,7 @@ def read_netlist(netlist_path):
     try:
         infile = open(netlist_path, "r")
     except FileNotFoundError:
-        logging.error("File does not exist in specified path")
+        logging.error(f"File '{netlist_path}' not found.")
         raise
     infile.close()
 
@@ -499,7 +499,6 @@ class State:
         self.nums["be"] = self.nums["anomalies"]
         logging.debug("nums={}".format(self.nums))
         logging.debug("anomnum={}".format(self.anomnum))
-        # From now on nums shall become immutable
 
 
 class Solution:

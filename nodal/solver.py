@@ -14,12 +14,14 @@ parser.add_argument("-s", "--sparse", action="store_true", help="use a sparse ma
 
 def main():
     args = parser.parse_args()
+    path = args.netlist_path
 
-    if os.path.isfile(args.netlist_path):
-        netlist = n.Netlist(args.netlist_path)
+    if os.path.isfile(path):
+        netlist = n.Netlist(path)
     else:
-        print("File not found: {}".format(args.netlist_path))
+        print(f"File not found: {path}")
         exit(1)
+
     circuit = n.Circuit(netlist, sparse=args.sparse)
     solution = circuit.solve()
     print(solution)
