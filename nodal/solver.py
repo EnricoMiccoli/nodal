@@ -1,5 +1,4 @@
 import argparse
-import os
 
 import nodal as n
 
@@ -14,12 +13,10 @@ parser.add_argument("-s", "--sparse", action="store_true", help="use a sparse ma
 
 def main():
     args = parser.parse_args()
-    path = args.netlist_path
 
-    if os.path.isfile(path):
-        netlist = n.Netlist(path)
-    else:
-        print(f"File not found: {path}")
+    try:
+        netlist = n.Netlist(args.netlist_path)
+    except FileNotFoundError:
         exit(1)
 
     circuit = n.Circuit(netlist, sparse=args.sparse)
