@@ -6,6 +6,8 @@ import scipy as sp
 import scipy.sparse as spsp
 import scipy.sparse.linalg as spspla
 
+import nodal.models as models
+
 logging.basicConfig(level=logging.ERROR)
 
 # CSV parsing
@@ -269,7 +271,7 @@ class Circuit:
         return solution
 
     def build_model(self):
-        sparse = self.sparse
+        # Setup local variables
         nums = self.netlist.nums
         anomnum = self.netlist.anomnum
         components = self.netlist.components
@@ -277,233 +279,54 @@ class Circuit:
         ground = self.netlist.ground
         nodenum = self.netlist.nodenum
 
+        # Initialize matrices
         n = nums["kcl"] + nums["be"]  # number of unknowns
-        if sparse:
+        if self.sparse:
             G = spsp.dok_matrix((n, n), dtype=np.float64)
         else:
             G = np.zeros(shape=(n, n))
         A = np.zeros(n)
         currents = []
+
+        # Iterate over components
         for key in component_keys:  # preserve order of iteration
             component = components[key]
-            anode = component.anode
-            bnode = component.bnode
-            if anode != ground:
-                i = nodenum[anode]
+            if component.anode != ground:
+                i = nodenum[component.anode]
                 assert 0 <= i <= nums["kcl"]
-            if bnode != ground:
-                j = nodenum[bnode]
+            else:
+                i = None
+            if component.bnode != ground:
+                j = nodenum[component.bnode]
                 assert 0 <= j <= nums["kcl"]
+            else:
+                j = None
 
+            args = (component, i, j, ground, G, A, currents, anomnum, nums, nodenum)
             if component.type == "R":
-                try:
-                    conductance = 1 / component.value
-                except ZeroDivisionError:
-                    raise ValueError(
-                        "Model error: resistors can't have null resistance"
-                    )
-                if anode != ground:
-                    G[i, i] += conductance
-                if bnode != ground:
-                    G[j, j] += conductance
-                if bnode != ground and anode != ground:
-                    G[i, j] -= conductance
-                    G[j, i] -= conductance
-
+                models.write_R(component, i, j, ground, G)
             elif component.type == "A":
-                current = component.value
-                if anode != ground:
-                    A[i] += current
-                if bnode != ground:
-                    A[j] -= current
-
+                models.write_A(component, i, j, ground, A)
             elif component.type == "E":
-                tension = component.value
-                k = anomnum[component.name]
-                i = nums["kcl"] + k
-                currents.append(component.name)
-                A[i] += tension
-                if anode != ground:
-                    j = nodenum[anode]
-                    assert G[i, j] == 0
-                    G[i, j] = 1
-                    G[j, i] = -1
-                if bnode != ground:
-                    j = nodenum[bnode]
-                    assert G[i, j] == 0
-                    G[i, j] = -1
-                    G[j, i] = 1
-
-            elif component.type == "VCVS":
-                currents.append(component.name)
-                r = component.value
-                k = anomnum[component.name]
-                i = nums["kcl"] + k
-                cnode = component.pos_control
-                dnode = component.neg_control
-                # we need to write this BE:
-                # ea - eb = r (ec - ed)
-                # ea - eb - r ec + r ed = 0
-                if anode != ground:
-                    j = nodenum[anode]
-                    assert G[i, j] == 0
-                    G[i, j] = 1
-                    G[j, i] = -1
-                if bnode != ground:
-                    j = nodenum[bnode]
-                    assert G[i, j] == 0
-                    G[i, j] = -1
-                    G[j, i] = 1
-                if cnode != ground:
-                    j = nodenum[cnode]
-                    G[i, j] += -r
-                if dnode != ground:
-                    j = nodenum[dnode]
-                    G[i, j] += r
-
+                models.write_E(*args)
             elif component.type == "VCCS":
-                currents.append(component.name)
-                g = component.value
-                k = anomnum[component.name]
-                j = nums["kcl"] + k
-                if anode != ground:
-                    i = nodenum[anode]
-                    assert G[i, j] == 0
-                    G[i, j] = -1
-                if bnode != ground:
-                    i = nodenum[bnode]
-                    assert G[i, j] == 0
-                    G[i, j] = 1
-                # we write the branch equation:
-                # i_cccs = g (ec - ed)
-                # i_cccs - g ec + g ed = 0
-                i = j
-                G[i, i] = +1
-                cnode = component.pos_control
-                dnode = component.neg_control
-                if cnode != ground:
-                    j = nodenum[cnode]
-                    G[i, j] = -g
-                if dnode != ground:
-                    j = nodenum[dnode]
-                    G[i, j] = +g
-
+                models.write_VCVS(*args)
+            elif component.type == "VCVS":
+                models.write_VCVS(*args)
             elif component.type == "CCVS":
-                r = component.value
-                k = anomnum[component.name]
-                i = nums["kcl"] + k
-                currents.append(component.name)
-                cnode = component.pos_control
-                dnode = component.neg_control
-                try:
-                    driver = components[component.driver]
-                except KeyError:
-                    raise KeyError(f"Driving component {component.driver} not found")
-                assert cnode is not None
-                assert dnode is not None
-                assert driver is not None
-                assert (cnode == driver.anode and dnode == driver.bnode) or (
-                    cnode == driver.bnode and dnode == driver.anode
-                )
-                if anode != ground:
-                    j = nodenum[anode]
-                    G[i, j] = 1
-                    G[j, i] = -1
-                if bnode != ground:
-                    j = nodenum[bnode]
-                    G[i, j] = -1
-                    G[j, i] = 1
-
-                # we write the branch equation:
-                # v_cccv = r * i_driver
-                # ea - eb - r * i_driver = 0
-                if driver.type == "R":
-                    # i_driver = (ec - ed)/R_driver
-                    if cnode != ground:
-                        j = nodenum[cnode]
-                        G[i, j] = r / driver.value
-                    if dnode != ground:
-                        j = nodenum[dnode]
-                        G[i, j] = -r / driver.value
-                elif driver.type in NODE_TYPES_ANOM:
-                    j = anomnum[driver.name]
-                    if driver.anode == component.pos_control:
-                        assert driver.bnode == component.neg_control
-                        G[i, j] = -r
-                    else:
-                        assert driver.anode == component.neg_control
-                        assert driver.bnode == component.pos_control
-                        G[i, j] = r
-                elif driver.type == "A":
-                    A[i] = r * driver.value
-                else:
-                    raise ValueError(f"Unknown component type: {driver.type}")
-
+                models.write_CCVS(*args)
             elif component.type == "CCCS":
-                currents.append(component.name)
-                g = component.value
-                k = anomnum[component.name]
-                j = nums["kcl"] + k
-                if anode != ground:
-                    i = nodenum[anode]
-                    assert G[i, j] == 0
-                    G[i, j] = -1
-                if bnode != ground:
-                    i = nodenum[bnode]
-                    assert G[i, j] == 0
-                    G[i, j] = 1
-                # we write the branch equation:
-                # i_cccs = g * i_driver
-                i = j
-                assert G[i, i] == 0
-                G[i, i] = 1
-                try:
-                    driver = components[component.driver]
-                except KeyError:
-                    raise KeyError(f"Driving component {component.driver} not found")
-                # case 1: i_driver is unknown
-                if driver.type == "R":
-                    cnode = component.pos_control
-                    dnode = component.neg_control
-                    assert (cnode == driver.anode and dnode == driver.bnode) or (
-                        cnode == driver.bnode and dnode == driver.anode
-                    )
-                    assert cnode is not None
-                    assert dnode is not None
-                    if cnode != ground:
-                        j = nodenum[cnode]
-                        assert G[i, j] == 0
-                        G[i, j] = +g / driver.value
-                    if dnode != ground:
-                        j = nodenum[dnode]
-                        assert G[i, j] == 0
-                        G[i, j] = -g / driver.value
-                elif driver.type in NODE_TYPES_ANOM:
-                    j = anomnum[driver.name]
-                    if driver.anode == component.pos_control:
-                        assert driver.bnode == component.neg_control
-                        G[i, j] = -g
-                    else:
-                        assert driver.anode == component.neg_control
-                        assert driver.bnode == component.pos_control
-                        G[i, j] = g
-                # case 2: i_driver is known
-                elif driver.type == "A":
-                    assert A[i] == 0
-                    A[i] = g * driver.value
-                else:
-                    raise ValueError(f"Unknown component type: {driver.type}")
-
+                models.write_CCCS(*args, components)
             elif component.type == "OPAMP":
                 raise NotImplementedError
-
             else:
                 raise ValueError(f"Unknown component type: {driver.type}")
 
+        # Log and return
         logging.debug("currents={}".format(currents))
         logging.debug("G=\n{}".format(G))
         logging.debug("A=\n{}".format(A))
-        if sparse:
+        if self.sparse:
             G = G.tocsr()
         return [G, A, currents]
 
