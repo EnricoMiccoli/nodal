@@ -1,3 +1,18 @@
+"""Central module of the nodal package.
+
+Provides, among others, the classes meant for external usage:
+    * Netlist: reads .csv files
+    * Circuit: provides solve() method to compute electrical variables
+    * Solution: printable object storing the computation results
+
+Example use case:
+    from nodal import Circuit, Netlist
+    my_netlist = Netlist("path/to/netlist.csv")
+    my_circuit = Circuit(my_netlist, sparse=True)
+    my_solution = my_circuit.solve()
+    print(my_solution)
+"""
+
 import csv
 import logging
 

@@ -1,3 +1,5 @@
+"""Script meant for command line usage, exported as `nodal-solver`"""
+
 import argparse
 
 import nodal as n

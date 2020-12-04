@@ -1,3 +1,15 @@
+"""Core implementation of the nodal analysis procedure.
+
+Provides write_COMPONENT() for all component types. These functions are
+used exclusively by the Circuit.build_model() method when writing the
+    G e = A
+linear system.
+
+The matrix G and the vector A are often referenced and modified by
+these functions.
+"""
+
+
 def write_R(c, i, j, ground, G):
     try:
         conductance = 1 / c.value
