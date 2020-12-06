@@ -61,11 +61,17 @@ OPMODEL_GAIN = 1e5  # (adimensional)
 
 
 def find_ground_node(degrees):
+    """Chooses node to be used as ground reference for the circuit.
+
+    If no node is explicitly labeled as ground ("g"), the node of
+    highest degree is picked instead.
+    """
+
     if "g" in degrees:
         ground = "g"
     else:
         ground = max(degrees.keys(), key=(lambda x: degrees[x]))
-    logging.debug("ground node-> {}".format(ground))
+    logging.debug(f"ground node-> {ground}")
     return ground
 
 
@@ -113,6 +119,23 @@ def build_opmodel(data):
 
 
 class Component:
+    """Builds object representing single electrical component.
+
+    Here `data` is a row from the .csv file, as a str.
+    Sets the following attributes:
+        * name
+        * type
+        * value
+        * anode
+        * bnode
+        * [pos_control]
+        * [neg_control]
+        * [driver]
+    Attributes in brackets might be set to None if not applicable.
+
+    Raises ValueError if data is malformed.
+    """
+
     def __init__(self, data):
         self.check_input(data)
 
@@ -165,6 +188,35 @@ class Component:
 
 
 class Netlist:
+    """Reads netlist from .csv file.
+
+    Sets the following attributes:
+        * nums: dictionary keeping count of the number of
+            * total electrical components
+            * anomalous components, ie component of any type
+              contained in NODE_TYPES_ANOM
+            * branch equations
+            * Kirchhoff Current Laws, ie number of nodes -1
+            * opamps
+        * degrees: number of connected components for each node
+        * anomnum: dictionary, with the format {component.name: i} for
+          all anomalous components, where i is an index starting at 0
+        * components: dictionary of Component objects, using
+          component.name as a key
+        * component_keys: ordered list of component keys, kept since
+          we will later need to iterate over components in the same
+          order as it was written
+        * ground: ground node
+        * nodenum: dictionary, with the format {node_label: i} for
+          all circuit nodes except ground, where i is an index starting
+          at 0
+        * opmodel_equivalents: stores the equivalent circuits generated
+          by build_opmodel()
+
+    Raises FileNotFoundError, ValueError when the netlist file
+    can't be found or parsed.
+    """
+
     def __init__(self, path):
         self.nums = {"components": 0, "anomalies": 0, "be": 0, "kcl": 0, "opamps": 0}
         self.degrees = {}
@@ -177,6 +229,8 @@ class Netlist:
         self.read_netlist(path)
 
     def process_component(self, data):
+        """Builds a Component object, updates counts and attributes"""
+
         # Skip comments and empty lines
         if data == [] or data[0][0] == "#":
             return
@@ -213,6 +267,8 @@ class Netlist:
             self.degrees[node] += 1
 
     def read_netlist(self, path):
+        """Iterates over netlist file to process components"""
+
         try:
             infile = open(path, "r")
         except FileNotFoundError:
@@ -239,6 +295,7 @@ class Netlist:
             for node in [k for k in self.degrees.keys() if k != self.ground]:
                 self.nodenum[node] = i
                 i += 1
+            # nodenum should have an entry for all nodes except ground
             assert len(self.nodenum) == len(self.degrees) - 1
 
             # Update equations count
@@ -250,6 +307,15 @@ class Netlist:
 
 
 class Circuit:
+    """Builds a system of linear equations from a Netlist object.
+
+    Main functionality is providing the solve() method, which
+    returns a Solution object.
+
+    Raises LinAlgError if the resulting matrix is singular. In the
+    absence of bugs this should never happen.
+    """
+
     def __init__(self, netlist, sparse=False):
         if not isinstance(netlist, Netlist):
             raise TypeError("Input isn't a netlist")
@@ -258,6 +324,8 @@ class Circuit:
         self.G, self.A, self.currents = self.build_model()
 
     def solve(self):
+        """Wrapper for numpy and scipy methods."""
+
         try:
             if self.sparse:
                 e = spspla.spsolve(self.G, self.A)
@@ -319,6 +387,8 @@ class Circuit:
             elif component.type == "OPAMP":
                 raise NotImplementedError
             else:
+                # This should never happen, since `component` has
+                # already been tested by Component.check_input()
                 raise ValueError(f"Unknown component type: {driver.type}")
 
         # Log and return
@@ -331,6 +401,18 @@ class Circuit:
 
 
 class Solution:
+    """Holds the result of computation.
+
+    Attributes:
+    * result: vector, stores both node potentials and currents running
+      through anomalous components. The first n elements are potentials
+      (unit is volt), while the remaining are currents in ampere, where
+      n = nums["kcl"]
+    * other attributes are for internal use
+
+    Printable.
+    """
+
     def __init__(self, result, netlist, currents):
         self.result = result
         self.nodenum = netlist.nodenum
