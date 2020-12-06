@@ -112,26 +112,6 @@ def build_opmodel(data):
     return result
 
 
-def solve_system(G, A):
-    try:
-        e = np.linalg.solve(G, A)
-    except np.linalg.linalg.LinAlgError:
-        logging.error("Model error: matrix is singular")
-        logging.debug(G)
-        raise
-    return e
-
-
-def solve_sparse_system(G, A):
-    try:
-        e = spspla.spsolve(G, A)
-    except sp.linalg.LinAlgError:
-        logging.error("Model error: matrix is singular")
-        logging.debug(G)
-        raise
-    return e
-
-
 class Component:
     def __init__(self, data):
         self.check_input(data)
@@ -278,12 +258,16 @@ class Circuit:
         self.G, self.A, self.currents = self.build_model()
 
     def solve(self):
-        if self.sparse:
-            result = solve_sparse_system(self.G, self.A)
-        else:
-            result = solve_system(self.G, self.A)
-        solution = Solution(result, self.netlist, self.currents)
-        return solution
+        try:
+            if self.sparse:
+                e = spspla.spsolve(self.G, self.A)
+            else:
+                e = np.linalg.solve(self.G, self.A)
+        except (np.linalg.linalg.LinAlgError, sp.linalg.LinAlgError):
+            logging.error("Model error: matrix is singular")
+            logging.debug(self.G)
+            raise
+        return Solution(e, self.netlist, self.currents)
 
     def build_model(self):
         # Setup local variables
