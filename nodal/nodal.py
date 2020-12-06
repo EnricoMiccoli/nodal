@@ -183,7 +183,7 @@ class Component:
         except ValueError:
             raise ValueError(
                 "Bad input: expected a number for component value "
-                "of {}, got {} instead".format(data[NCOL], data[VCOL])
+                f"of {key}, got {data[VCOL]} instead"
             )
 
 
@@ -298,11 +298,11 @@ class Netlist:
             assert len(self.nodenum) == len(self.degrees) - 1
 
             # Update equations count
-            logging.debug("nodenum={}".format(self.nodenum))
+            logging.debug(f"nodenum={self.nodenum}")
             self.nums["kcl"] = len(self.nodenum)
             self.nums["be"] = self.nums["anomalies"]
-            logging.debug("nums={}".format(self.nums))
-            logging.debug("anomnum={}".format(self.anomnum))
+            logging.debug(f"nums={self.nums}")
+            logging.debug(f"anomnum={self.anomnum}")
 
 
 class Circuit:
@@ -391,9 +391,9 @@ class Circuit:
                 raise ValueError(f"Unknown component type: {driver.type}")
 
         # Log and return
-        logging.debug("currents={}".format(currents))
-        logging.debug("G=\n{}".format(G))
-        logging.debug("A=\n{}".format(A))
+        logging.debug(f"currents={currents}")
+        logging.debug(f"G=\n{G}")
+        logging.debug(f"A=\n{A}")
         if self.sparse:
             G = G.tocsr()
         return [G, A, currents]
@@ -421,15 +421,15 @@ class Solution:
         self.anomnum = netlist.anomnum
 
     def __str__(self):
-        output = "Ground node: {}".format(self.ground)
+        output = f"Ground node: {self.ground}"
         names = sorted(self.nodenum)
         for name in names:
             i = self.nodenum[name]
             potential = self.result[i]
-            output += "\ne({}) \t= {}".format(name, potential)
+            output += f"\ne({name}) \t= {potential}"
         names = sorted(self.anomnum)
         for name in names:
             i = self.anomnum[name]
             current = self.result[self.nums["kcl"] + i]
-            output += "\ni({}) \t= {}".format(name, current)
+            output += f"\ni({name}) \t= {current}"
         return output
