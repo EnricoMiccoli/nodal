@@ -250,7 +250,6 @@ class Netlist:
         key = data[NCOL]
         # We will need to iterate over components twice
         # in the same order, so we save keys
-        # TODO make this more memory efficient
         self.component_keys.append(key)
         self.components[key] = newcomp
 
