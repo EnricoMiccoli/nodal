@@ -1,0 +1,15 @@
+# Resistive network:
+# equivalent resistance between 1 and g is 2 ohm
+#
+#  (1)--------------
+#                  |
+#                  R1
+#                  |
+#                 (2)     R1 = R2 = 1 ohm
+#                  |
+#                  R2
+#                  |
+#  (g)--------------
+#
+r1, R, 1, 1, 2
+r2, R, 1, 2, g

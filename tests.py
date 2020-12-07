@@ -4,10 +4,40 @@ import unittest
 import unittest.mock
 
 import nodal as n
+import nodal.equiv
 
 
 def check_input(data):
     n.Component.check_input(None, data)
+
+
+class ResistanceTesters(unittest.TestCase):
+    equivs = {
+        "resistive_1.csv": 2.0,
+        "resistive_2.csv": 1.0,
+        "resistive_3.csv": 1.0,
+    }
+    resistive = {
+        "resistive_1.csv": True,
+        "resistive_2.csv": True,
+        "1.6.1.csv": False,
+        "netlist.csv": False,
+        "opmodel_amplifier.csv": False,
+    }
+
+    def test_equivalent_resistance(self):
+        for path, result in self.equivs.items():
+            netlist = n.Netlist("doc/" + path)
+            r = n.equiv.equivalent_resistance(netlist, "1", "g")
+            if r != result:
+                assert False
+
+    def test_check_resistive(self):
+        for path, result in self.resistive.items():
+            netlist = n.Netlist("doc/" + path)
+            r = n.equiv.check_resistive(netlist)
+            if r != result:
+                assert False
 
 
 class IntegratedTest(unittest.TestCase):
