@@ -13,3 +13,4 @@ requires-python=">=3"
 
 [tool.flit.scripts]
 nodal-solver = "nodal.solver:main"
+nodal-resistance = "nodal.equiv:main"
