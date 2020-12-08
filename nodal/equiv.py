@@ -78,9 +78,9 @@ def main():
         print("Invalid netlist\n")
         print("Resistors are the only component allowed in the circuit")
         exit(1)
-    except KeyError:
+    except KeyError as e:
         print("Invalid netlist\n")
-        print("Node '1' or 'g' not found.")
+        print(e.args[0])
         exit(1)
 
     print(f"R = {r}")
