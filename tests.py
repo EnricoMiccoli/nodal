@@ -188,6 +188,20 @@ class GroundNode(unittest.TestCase):
             assert n.find_ground_node(deg) == expected
 
 
+class Connected(unittest.TestCase):
+    def test_connected(self):
+        paths = ["doc/1.6.1.csv", "doc/buffer.csv", "doc/netlist.csv"]
+        for path in paths:
+            netlist = n.Netlist(path)
+            assert n.is_connected(netlist)
+
+    def test_unconnected(self):
+        paths = ["doc/unconnected_1.csv"]
+        for path in paths:
+            netlist = n.Netlist(path)
+            assert not n.is_connected(netlist)
+
+
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.CRITICAL)
     unittest.main()

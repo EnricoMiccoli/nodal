@@ -118,6 +118,30 @@ def build_opmodel(data):
     return result
 
 
+def is_connected(netlist):
+    nodes = netlist.degrees.keys()
+    forward = {node: set() for node in nodes}
+    for component in netlist.components.values():
+        forward[component.anode].add(component.bnode)
+        forward[component.bnode].add(component.anode)
+    assert len(forward) == len(nodes)
+
+    # Breadth first search
+    visited_count = 0
+    open_list = [netlist.ground]
+    for node in open_list:
+        visited_count += 1
+        new_nodes = (x for x in forward[node] if x not in open_list)
+        open_list.extend(new_nodes)
+
+    assert visited_count == len(open_list)
+    return len(nodes) == visited_count
+
+
+class UnconnectedCircuitError(Exception):
+    pass
+
+
 class Component:
     """Builds object representing single electrical component.
 
@@ -310,9 +334,6 @@ class Circuit:
 
     Main functionality is providing the solve() method, which
     returns a Solution object.
-
-    Raises LinAlgError if the resulting matrix is singular. In the
-    absence of bugs this should never happen.
     """
 
     def __init__(self, netlist, sparse=False):
@@ -323,7 +344,14 @@ class Circuit:
         self.G, self.A, self.currents = self.build_model()
 
     def solve(self):
-        """Wrapper for numpy and scipy methods."""
+        """Wrapper for numpy and scipy methods.
+
+        Raises:
+            * LinAlgError: the linear system is singular. This should
+              never happen.
+            * UnconnectedCircuitError: there are floating nodes not
+              connected to the rest of the circuit.
+        """
 
         try:
             if self.sparse:
@@ -331,9 +359,13 @@ class Circuit:
             else:
                 e = np.linalg.solve(self.G, self.A)
         except (np.linalg.linalg.LinAlgError, sp.linalg.LinAlgError):
-            logging.error("Model error: matrix is singular")
-            logging.debug(self.G)
-            raise
+            if not is_connected(self.netlist):
+                logging.error("Model error: unconnected circuit")
+                raise UnconnectedCircuitError
+            else:
+                logging.error("Model error: matrix is singular")
+                logging.debug(self.G)
+                raise
         return Solution(e, self.netlist, self.currents)
 
     def build_model(self):

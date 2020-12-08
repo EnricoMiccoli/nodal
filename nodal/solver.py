@@ -22,7 +22,12 @@ def main():
         exit(1)
 
     circuit = n.Circuit(netlist, sparse=args.sparse)
-    solution = circuit.solve()
+
+    try:
+        solution = circuit.solve()
+    except n.UnconnectedCircuitError:
+        exit(1)
+
     print(solution)
 
 
