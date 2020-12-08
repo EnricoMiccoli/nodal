@@ -106,7 +106,7 @@ def write_VCCS(c, i, j, ground, G, currents, anomnum, nums, nodenum):
         G[i, j] = +g
 
 
-def write_CCVS(c, i, j, ground, G, A, currents, anomnum, nums, nodenum):
+def write_CCVS(c, i, j, ground, G, A, currents, anomnum, nums, nodenum, components):
     r = c.value
     k = anomnum[c.name]
     i = nums["kcl"] + k
@@ -114,7 +114,7 @@ def write_CCVS(c, i, j, ground, G, A, currents, anomnum, nums, nodenum):
     c.cnode = c.pos_control
     c.dnode = c.neg_control
     try:
-        driver = cs[c.driver]
+        driver = components[c.driver]
     except KeyError:
         raise KeyError(f"Driving component {c.driver} not found")
     assert c.cnode is not None

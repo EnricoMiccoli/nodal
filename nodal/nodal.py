@@ -380,7 +380,7 @@ class Circuit:
             elif component.type == "VCVS":
                 models.write_VCVS(*args)
             elif component.type == "CCVS":
-                models.write_CCVS(*args)
+                models.write_CCVS(*args, components)
             elif component.type == "CCCS":
                 models.write_CCCS(*args, components)
             elif component.type == "OPAMP":
