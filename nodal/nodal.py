@@ -387,7 +387,7 @@ class Circuit:
             else:
                 # This should never happen, since `component` has
                 # already been tested by Component.check_input()
-                raise ValueError(f"Unknown component type: {driver.type}")
+                raise ValueError(f"Unknown component type: {component.driver.type}")
 
         # Log and return
         logging.debug(f"currents={currents}")
