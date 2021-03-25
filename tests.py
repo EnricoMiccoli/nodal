@@ -12,11 +12,7 @@ def check_input(data):
 
 
 class ResistanceTesters(unittest.TestCase):
-    equivs = {
-        "resistive_1.csv": 2.0,
-        "resistive_2.csv": 1.0,
-        "resistive_3.csv": 1.0,
-    }
+    equivs = {"resistive_1.csv": 2.0, "resistive_2.csv": 1.0, "resistive_3.csv": 1.0}
     resistive = {
         "resistive_1.csv": True,
         "resistive_2.csv": True,

@@ -8,7 +8,6 @@ from copy import deepcopy
 
 import nodal as n
 
-
 parser = argparse.ArgumentParser(
     description="Calculate equivalent resistance using nodal analysis"
     "\n"
