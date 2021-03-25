@@ -21,43 +21,10 @@ import scipy as sp
 import scipy.sparse as spsp
 import scipy.sparse.linalg as spspla
 
+import nodal.constants as c
 import nodal.models as models
 
 logging.basicConfig(level=logging.ERROR)
-
-# CSV parsing
-NCOL = 0  # component name
-TCOL = 1  # type of component
-VCOL = 2  # value of component, eg resistance
-ACOL = 3  # node connected to first lead, currents enter here
-BCOL = 4  # node connected to second lead
-# for dependent sources:
-CCOL = 5  # first node of controlling variable
-DCOL = 6  # second node of controlling variable
-PCOL = 7  # name of the driving component
-
-# Component types
-NODE_TYPES_CC = ["CCCS", "CCVS"]
-NODE_TYPES_DEP = ["VCVS", "VCCS"] + NODE_TYPES_CC
-NODE_TYPES_ANOM = ["E"] + NODE_TYPES_DEP
-NODE_TYPES = ["A", "R"] + NODE_TYPES_ANOM + ["OPAMP", "OPMODEL"]
-
-NODE_ARGS_NUMBER = {
-    "OPAMP": 7,
-    "OPMODEL": 7,
-    "R": 5,
-    "A": 5,
-    "E": 5,
-    "VCCS": 7,
-    "VCVS": 7,
-    "CCCS": 8,
-    "CCVS": 8,
-}
-
-# OPAMP modeling
-OPMODEL_RI = 1e7  # (ohm)
-OPMODEL_RO = 10  # (ohm)
-OPMODEL_GAIN = 1e5  # (adimensional)
 
 
 def find_ground_node(degrees):
@@ -87,19 +54,19 @@ def build_opmodel(data):
     #   inverting terminal,
     # ]
 
-    name = data[NCOL]
+    name = data[c.NCOL]
 
     # Values
-    ri = str(OPMODEL_RI)
-    ro = str(OPMODEL_RO)
-    rf = data[VCOL]
-    gain = str(OPMODEL_GAIN)
+    ri = str(c.OPMODEL_RI)
+    ro = str(c.OPMODEL_RO)
+    rf = data[c.VCOL]
+    gain = str(c.OPMODEL_GAIN)
 
     # Nodes
-    out = data[ACOL]
-    ground = data[BCOL]
-    pos = data[CCOL]
-    neg = data[DCOL]
+    out = data[c.ACOL]
+    ground = data[c.BCOL]
+    pos = data[c.CCOL]
+    neg = data[c.DCOL]
     phony = f"{name}_internal_node"
 
     input_resistor = [f"{name}_ri", "R", ri, pos, neg]
@@ -163,17 +130,17 @@ class Component:
     def __init__(self, data):
         self.check_input(data)
 
-        self.name = data[NCOL]
-        self.type = data[TCOL]
-        self.value = float(data[VCOL])
-        self.anode = data[ACOL]
-        self.bnode = data[BCOL]
+        self.name = data[c.NCOL]
+        self.type = data[c.TCOL]
+        self.value = float(data[c.VCOL])
+        self.anode = data[c.ACOL]
+        self.bnode = data[c.BCOL]
 
-        if data[TCOL] in NODE_TYPES_DEP:
-            self.pos_control = data[CCOL]
-            self.neg_control = data[DCOL]
-            if data[TCOL] in NODE_TYPES_CC:
-                self.driver = data[PCOL]
+        if data[c.TCOL] in c.NODE_TYPES_DEP:
+            self.pos_control = data[c.CCOL]
+            self.neg_control = data[c.DCOL]
+            if data[c.TCOL] in c.NODE_TYPES_CC:
+                self.driver = data[c.PCOL]
             else:
                 self.driver = None
         else:
@@ -185,29 +152,29 @@ class Component:
         if s == 0 or data[0][0] == "#":
             return
 
-        key = data[NCOL]
+        key = data[c.NCOL]
         assert type(key) == str
 
         if s < 5:
             raise ValueError(f"Missing arguments for component {key}")
 
-        ctype = data[TCOL]
+        ctype = data[c.TCOL]
 
-        if ctype not in NODE_TYPES:
+        if ctype not in c.NODE_TYPES:
             raise ValueError(f"Unknown type {ctype} for component {key}")
 
-        n = NODE_ARGS_NUMBER[ctype]
+        n = c.NODE_ARGS_NUMBER[ctype]
         if s != n:
             raise ValueError(
                 f"Wrong number of arguments for component {key}: expected {n}, got {s}"
             )
 
         try:
-            float(data[VCOL])
+            float(data[c.VCOL])
         except ValueError:
             raise ValueError(
                 "Bad input: expected a number for component value "
-                f"of {key}, got {data[VCOL]} instead"
+                f"of {key}, got {data[c.VCOL]} instead"
             )
 
 
@@ -261,7 +228,7 @@ class Netlist:
 
         # If the current component is an OPMODEL,
         # replace it with an equivalent circuit.
-        if data[TCOL] == "OPMODEL":
+        if data[c.TCOL] == "OPMODEL":
             eq = build_opmodel(data)
             self.opmodel_equivalents.extend(eq)
             return
@@ -271,7 +238,7 @@ class Netlist:
             newcomp = Component(data)
         except ValueError:
             raise
-        key = data[NCOL]
+        key = data[c.NCOL]
         # We will need to iterate over components twice
         # in the same order, so we save keys
         self.component_keys.append(key)
@@ -279,10 +246,10 @@ class Netlist:
 
         # Update the different component counts
         self.nums["components"] += 1
-        curnodes = [data[ACOL], data[BCOL]]
+        curnodes = [data[c.ACOL], data[c.BCOL]]
         newnodes = [key for key in curnodes if key not in self.degrees]
-        if data[TCOL] in NODE_TYPES_ANOM:
-            self.anomnum[data[NCOL]] = self.nums["anomalies"]
+        if data[c.TCOL] in c.NODE_TYPES_ANOM:
+            self.anomnum[data[c.NCOL]] = self.nums["anomalies"]
             self.nums["anomalies"] += 1
         for node in newnodes:
             self.degrees[node] = 0

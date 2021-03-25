@@ -143,7 +143,7 @@ def write_CCVS(c, i, j, ground, G, A, currents, anomnum, nums, nodenum, componen
         if c.dnode != ground:
             j = nodenum[c.dnode]
             G[i, j] = -r / driver.value
-    elif driver.type in NODE_TYPES_ANOM:
+    elif driver.type in c.NODE_TYPES_ANOM:
         j = anomnum[driver.name]
         if driver.anode == c.pos_control:
             assert driver.bnode == c.neg_control
@@ -197,7 +197,7 @@ def write_CCCS(c, i, j, ground, G, A, currents, anomnum, nums, nodenum, componen
             j = nodenum[c.dnode]
             assert G[i, j] == 0
             G[i, j] = -g / driver.value
-    elif driver.type in NODE_TYPES_ANOM:
+    elif driver.type in c.NODE_TYPES_ANOM:
         j = anomnum[driver.name]
         if driver.anode == c.pos_control:
             assert driver.bnode == c.neg_control
