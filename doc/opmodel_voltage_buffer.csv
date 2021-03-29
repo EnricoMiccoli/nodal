@@ -2,5 +2,17 @@
 # output e(2) will be equal to input set by v1
 # expected output for ideal circuit is e(2) = 1
 
+# Opamp:
+#   feedback resistance:    0 ohm
+#   output terminal:        node 2
+#   ground reference:       node g
+#   non-inverting terminal: node 3
+#   inverting terminal:     node 2
+#
+# To have direct feedback without a resistor, we set the feedback resistance
+# to 0 ohm, then we connect the inverting and output terminals to the same
+# node (in this case to node 2).
 q1,OPMODEL,0,2,g,3,2
+
+# Input voltage generator
 v1,E,1,3,g

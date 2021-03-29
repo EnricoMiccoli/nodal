@@ -1,5 +1,24 @@
 # Nodal.py
-Nodal.py is a simple electrical circuit simulator that uses nodal analysis to solve linear networks made up of resistors and ideal current or voltage sources, both independent and controlled. The numerical work is done by the [numpy](https://www.numpy.org/) package.
+Nodal.py is a simple electrical circuit simulator that uses nodal analysis to solve linear networks made up of resistors and ideal current or voltage sources, both independent and controlled.
+
+The intendend use case of nodal is through the two provided commandline scripts. Even so, the package has been carefully written so that it might be used to programmatically simulate circuits from inside another application.
+
+The numerical work is done by the [numpy](https://www.numpy.org/) package. For larger circuits, the user may choose to use sparce matrices, in which case computation is powered by [scipy](https://docs.scipy.org/doc/scipy/reference/sparse.linalg.html) instead.
+
+
+
+
+### Table of contents
+* [How to install](#installation)
+* [Command line scripts](#command-line-scripts)
+    * [Defining the input](#defining-the-input)
+    * [Solving circuits: nodal-solver](#circuit-solver)
+    * [Calculating resistance: nodal-resistance](#resistance-calculator)
+    * [Component specification](#component-specification)
+* [Usage examples](#usage-example)
+
+
+
 
 ## Installation
 To get the stable release [download it](https://github.com/EnricoMiccoli/nodal/releases/latest) and run
@@ -13,6 +32,54 @@ $ git clone https://github.com/EnricoMiccoli/nodal.git
 $ cd nodal
 $ flit install
 ```
+
+
+
+
+## Command line scripts
+
+### Defining the input
+All scripts read their input from a [netlist](https://en.wikipedia.org/wiki/Netlist) in the csv format. Each line represents a component and contains informations about its electrical values (e.g. the resistance in ohm for a resistor) and all the connections it makes with other components.
+
+Many annotated examples of netlists are available in the `doc/` directory.
+
+
+### Circuit solver
+Usage: `$ nodal-solver netlist.csv`. If the circuit is particularly large, one might use `$ nodal-solver -s netlist.csv` instead to save memory and runtime.
+
+The output is printed in the following format:
+```
+e(node_name) = node potential (volt)
+i(component_name) = current passing through the component (ampere)
+```
+The ground node is used as a potential reference. It is set at 0 volt.
+
+
+
+### Resistance calculator
+Usage: `$ nodal-resistance netlist.csv` or `$ nodal-resistance -s netlist.csv`.
+
+This will print the equivalent resistance (unit is ohm) as seen through the nodes named `1` and `g` in the netlist.
+
+
+### Component specification
+| | Type | Value | Lead + | Lead - | Control + | Control - | Driver |
+|---|---|---|---|---|---|---|---|
+Resistor | R | resistance (ohm) | first | second | NA | NA | NA |
+Voltage source | E | voltage (volt) | + voltage | ground | NA | NA | NA |
+Current source | A | current (ampere) | + current | ground | NA | NA | NA |
+CCCS | CCCS | gain (adimensional) | + current | ground | + driving current | - driving current | component determining the current |
+CCVS | CCVS | gain (ohm) | + tension | ground | + driving current | - driving current | component determining the current |
+VCCS | VCCS | gain (ohm^-1) | + current | ground | + driving voltage | - driving voltage | NA |
+VCVS | VCVS | gain (adimensional) | + voltage | ground | + driving voltage | - driving voltage | NA |
+OPAMP, simulated | OPMODEL | feedback resistance (ohm) | output | ground | + terminal | - terminal | NA |
+
+Note that opamps are not supported directly, but they are instead internally simulated with an equivalent circuit. For example this is the circuit generated to model a voltage buffer:
+
+![Voltage buffer circuit diagram](doc/buffer.png)
+
+
+
 
 ## Usage example
 Suppose we wanted to solve this circuit:
@@ -73,32 +140,3 @@ i(e1)   = 3.0
 ### A more contrived example
 [What is the resistance between two points that are a knight's move away on an infinite grid of 1 ohm resistors?](https://enricomiccoli.github.io/2019/03/20/xkcd-356-infinite-grid-resistors.html)
 
-# Complete component specification
-
-| | Type | Value | Lead + | Lead - | Control + | Control - | Driver |
-|---|---|---|---|---|---|---|---|
-Resistor | R | resistance (ohm) | first | second | NA | NA | NA |
-Voltage source | E | voltage (volt) | + voltage | ground | NA | NA | NA |
-Current source | A | current (ampere) | + current | ground | NA | NA | NA |
-CCCS | CCCS | gain (adimensional) | + current | ground | + driving current | - driving current | component determining the current |
-CCVS | CCVS | gain (ohm) | + tension | ground | + driving current | - driving current | component determining the current |
-VCCS | VCCS | gain (ohm^-1) | + current | ground | + driving voltage | - driving voltage | NA |
-VCVS | VCVS | gain (adimensional) | + voltage | ground | + driving voltage | - driving voltage | NA |
-OPAMP, simulated | OPMODEL | feedback resistance (ohm) | output | ground | + terminal | - terminal | NA |
-
-## Modeling operational amplifiers
-Opamps are not supported directly, instead they are simulated with an equivalent circuit. For example this is what happens when modeling a voltage buffer:
-
-![Voltage buffer circuit diagram](doc/buffer.png)
-
-Input file:
-```
-q1, OPMODEL, 0, 1, g, 2, 1
-v1, E, 10, 2, g
-```
-
-Output (excerpt):
-```
-Ground node: g
-e(1)    = 9.999900000999991
-```

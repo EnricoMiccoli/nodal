@@ -2,6 +2,21 @@
 # gain is 2, input is 1V set by v1
 # expected output for ideal circuit is e(2) = 2
 
-r1,R,1,g,1
+# Opamp:
+#   feedback resistance:    1 ohm
+#   output terminal:        node 2
+#   ground reference:       node g
+#   non-inverting terminal: node 3
+#   inverting terminal:     node 1
+#
+# Notice that we don't need to specify a stand-alone component for the
+# feedback loop: setting the feedback resistance to a non zero value
+# is sufficient and the resistor will be added internally.
 q1,OPMODEL,1,2,g,3,1
+
+# Voltage source for the input voltage
 v1,E,1,3,g
+
+# Additional resistor to set gain
+# The amplifier has gain 1 + rf/r1, where rf is the feedback resistance
+r1,R,1,g,1
