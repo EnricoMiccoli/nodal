@@ -1,0 +1,15 @@
+# This is a nonsensical circuit meant to test all components at the same time
+# Expected result is
+#   e(1,2,3,4,5,6) = 1 V
+#   i(d1,d2,e1) = 0 A
+#   i(d3,d4) = 1 A
+
+e1,E,1,1,g
+a1,A,1,2,g
+r1,R,1,2,g
+r2,R,1,5,g
+r3,R,1,6,g
+d1,CCVS,1,3,g,g,2,r1
+d2,VCVS,1,4,g,2,g
+d3,CCCS,1,5,g,g,2,r1
+d4,VCCS,1,6,g,2,g

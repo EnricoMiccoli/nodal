@@ -103,6 +103,24 @@ class IntegratedTest(unittest.TestCase):
         )
         self.assert_print(path, expected)
 
+    def test_test_1(self):
+        path = "doc/test_1.csv"
+        expected = (
+            "Ground node: g\n"
+            "e(1) \t= 1.0\n"
+            "e(2) \t= 1.0\n"
+            "e(3) \t= 1.0\n"
+            "e(4) \t= 1.0\n"
+            "e(5) \t= 1.0\n"
+            "e(6) \t= 1.0\n"
+            "i(d1) \t= -0.0\n"
+            "i(d2) \t= -0.0\n"
+            "i(d3) \t= 1.0\n"
+            "i(d4) \t= 1.0\n"
+            "i(e1) \t= -0.0\n"
+        )
+        self.assert_print(path, expected)
+
 
 class InputTesters(unittest.TestCase):
     def test_check_input_component(self):
