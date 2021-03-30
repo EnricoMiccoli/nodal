@@ -82,7 +82,7 @@ class IntegratedTest(unittest.TestCase):
         path = "doc/opmodel_amplifier.csv"
         expected = (
             "Ground node: g\n"
-            "e(1) \t= 0.9998800143982738\n"
+            "e(1) \t= 0.9998800143982737\n"
             "e(2) \t= 1.9997600287845492\n"
             "e(3) \t= 1.0000000000000002\n"
             "e(q1_internal_node) \t= 11.998560172647306\n"
