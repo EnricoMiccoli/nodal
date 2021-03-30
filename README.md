@@ -23,7 +23,7 @@ The numerical work is done by the [numpy](https://www.numpy.org/) package. For l
 ## Installation
 To get the stable release [download it](https://github.com/EnricoMiccoli/nodal/releases/latest) and run
 ```
-$ pip install nodal-1.2.0.whl
+$ pip install nodal-1.3.0.whl
 ```
 
 To try out the latest developments use [`flit`](https://github.com/takluyver/flit) instead:
